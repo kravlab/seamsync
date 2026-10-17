@@ -2,3 +2,8 @@
 
 [tools]
 lefthook = "2.1.14"  # runs the git hooks (lefthook.yml)
+
+[settings]
+# A release must be this old before mise installs it, for the tools above
+# that name "latest". A tool pinned exactly is installed whatever its age.
+minimum_release_age = "5d"
