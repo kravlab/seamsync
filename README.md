@@ -145,8 +145,8 @@ A dev container is provided in [.devcontainer/](.devcontainer/).
 
 The build bundles a Dropbox app key, which is never committed. Set
 `SEAMSYNC_DROPBOX_APP_KEY` in the environment or in a git-ignored `.env`
-file; the build stops with an error without it. The app must have App
-Folder access.
+file. A build without it succeeds with a warning, but cannot connect to
+Dropbox: its connect window says so. The app must have App Folder access.
 
 | Command              | What it does                                                 |
 | -------------------- | ------------------------------------------------------------ |

@@ -52,6 +52,16 @@ describe("withConnectErrorLog", () => {
 		expect(log.lines).toEqual(["2026-10-21 16:37 Connecting failed. Dropbox did not accept the code. (invalid_grant)"]);
 	});
 
+	it("writes a build without an app key, in English", () => {
+		const log = new RecordingLog();
+		const clock = new ManualClock();
+		clock.advance(AFTERNOON);
+
+		withConnectErrorLog(new RecordingUi(), log, clock).reportConnectFailure({ cause: "noAppKey" });
+
+		expect(log.lines).toEqual(["2026-10-21 16:37 Connecting failed. This build has no Dropbox app key."]);
+	});
+
 	it("writes a revoke that failed on disconnect, in English, and passes it on", () => {
 		const inner = new RecordingUi();
 		const log = new RecordingLog();

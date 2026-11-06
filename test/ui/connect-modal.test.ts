@@ -8,6 +8,7 @@ import type {
 	RemoteCandidate,
 	RemoteChooser,
 } from "../../src/engine/connection";
+import { NoAppKeyError } from "../../src/engine/connect-step";
 import { ProviderError } from "../../src/engine/provider";
 import { ConnectModal } from "../../src/ui/connect-modal";
 import { fill } from "../../src/ui/i18n/fill";
@@ -18,20 +19,24 @@ const strings = selectStrings("en");
 
 /** What the fake connection service answers at each step; a function that throws plays a failure. */
 interface Script {
-	submitCode: () => Promise<AuthorizationOutcome>;
+	/** Starts a login; by default one whose code is answered as `submitCode` says. */
+	startAuthorization?: ConnectionService["startAuthorization"];
+	submitCode?: () => Promise<AuthorizationOutcome>;
 	list?: () => Promise<readonly RemoteCandidate[]>;
 	useFolder?: () => Promise<JoinOutcome>;
 	createRemote?: () => Promise<CreateRemoteOutcome>;
 }
 
-/** A connection service that answers the code as `script` says. */
-function serviceFor(script: Pick<Script, "submitCode">): ConnectionService {
+/** A connection service that starts logins and answers the code as `script` says. */
+function serviceFor(script: Pick<Script, "startAuthorization" | "submitCode">): ConnectionService {
+	const { submitCode = () => Promise.reject(new Error("unused")) } = script;
 	return {
 		showStatus: () => Promise.resolve(),
 		currentDevice: () => Promise.resolve(null),
 		disconnect: () => Promise.resolve({ kind: "disconnected" }),
-		startAuthorization: () =>
-			Promise.resolve({ authorizeUrl: "https://example.com/authorize", submitCode: () => script.submitCode() }),
+		startAuthorization:
+			script.startAuthorization ??
+			(() => Promise.resolve({ authorizeUrl: "https://example.com/authorize", submitCode: () => submitCode() })),
 		renameDevice: () => Promise.reject(new Error("unused")),
 		otherDevices: () => Promise.reject(new Error("unused")),
 		forgetDevice: () => Promise.reject(new Error("unused")),
@@ -48,13 +53,23 @@ function remotesFor(script: Omit<Script, "submitCode">): RemoteChooser {
 	};
 }
 
+/** The connect window over `service`, in the language of `windowStrings`, just opened. */
+function newWindow(
+	service: ConnectionService,
+	windowStrings = strings,
+	onConnected: (kind: "connected" | "reconnected") => void = () => undefined,
+): ConnectModal {
+	const modal = new ConnectModal({} as never, service, windowStrings, "My vault", onConnected);
+	modal.open();
+	return modal;
+}
+
 /** The open connect window, after it showed the login screen; it tells `onConnected` once connected. */
 async function openWindow(
 	script: Pick<Script, "submitCode">,
 	onConnected: (kind: "connected" | "reconnected") => void = () => undefined,
 ): Promise<ConnectModal> {
-	const modal = new ConnectModal({} as never, serviceFor(script), strings, "My vault", onConnected);
-	modal.open();
+	const modal = newWindow(serviceFor(script), strings, onConnected);
 	await vi.waitFor(() => expect(button(modal, strings.continue)).toBeDefined());
 	return modal;
 }
@@ -114,6 +129,29 @@ afterEach(() => {
 });
 
 describe("the connect window's failures", () => {
+	it.each([
+		[
+			"en",
+			"This build of the plugin has no Dropbox app key, so it cannot connect to Dropbox. Install the official release, or build the plugin with SEAMSYNC_DROPBOX_APP_KEY set.",
+		],
+		[
+			"ru",
+			"В этой сборке плагина нет ключа приложения Dropbox, поэтому она не может подключиться к Dropbox. Установите официальный релиз или соберите плагин с заданной переменной SEAMSYNC_DROPBOX_APP_KEY.",
+		],
+	])("tells at once, in %s, that a build without an app key cannot connect, offering to copy it", async (language, message) => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const languageStrings = selectStrings(language);
+		const modal = newWindow(serviceFor({ startAuthorization: () => Promise.reject(new NoAppKeyError()) }), languageStrings);
+
+		await vi.waitFor(() => expect(modal.contentEl.querySelector(".seamsync-message")?.textContent).toBe(message));
+		button(modal, languageStrings.copyError)?.click();
+
+		expect(modal.contentEl.querySelector(".seamsync-message-detail")?.textContent).toBe("");
+		expect(button(modal, languageStrings.openDropbox)).toBeUndefined();
+		expect(clipboard.writeText).toHaveBeenCalledWith(message);
+		expect(consoleError).not.toHaveBeenCalled();
+	});
+
 	it("shows a refused code with the service's answer and a button that copies both", async () => {
 		const modal = await openWindow({ submitCode: () => Promise.resolve({ kind: "codeRejected", detail: "invalid_grant" }) });
 
