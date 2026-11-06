@@ -139,6 +139,8 @@ export const ru: Strings = {
 	errorUnreachable: "Dropbox недоступен. Проверьте подключение к сети и попробуйте ещё раз.",
 	errorFailed: "Dropbox отклонил запрос. Попробуйте позже.",
 	connectUnexpected: "Не удалось подключиться из-за непредвиденной ошибки.",
+	noAppKey:
+		"В этой сборке плагина нет ключа приложения Dropbox, поэтому она не может подключиться к Dropbox. Установите официальный релиз или соберите плагин с заданной переменной {variable}.",
 	errorDetails: "Подробности: {detail}",
 	copyError: "Скопировать ошибку",
 	errorCopied: "Ошибка скопирована.",
@@ -249,6 +251,7 @@ export const ru: Strings = {
 	failureUnsupportedProvider: "С этим провайдером синхронизация невозможна",
 	failureUnreadableSettings: "Общих настроек в Dropbox нет или их не прочитать",
 	failureBug: "В плагине произошла ошибка",
+	connectFailureNoAppKey: "В этой сборке нет ключа приложения Dropbox",
 	connectFailureCodeRejected: "Dropbox не принял код",
 	connectFailureOtherAccount: "Это устройство подключено к другому аккаунту Dropbox",
 	connectFailureNameTaken: "Папка с таким именем уже есть",

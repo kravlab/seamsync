@@ -33,12 +33,12 @@ const copyPluginFiles = {
 // The Dropbox app key is never written in the repository. It comes from the
 // environment or from a git-ignored .env file (the environment wins), and
 // esbuild bundles it into main.js in place of SEAMSYNC_DROPBOX_APP_KEY.
+// Without one the build bundles an empty key, and the plugin it makes says
+// it cannot connect to Dropbox instead of opening a login (ADR 0005); the
+// build warns on stderr, so an empty variable is not missed.
 if (existsSync(".env")) process.loadEnvFile(".env");
-const dropboxAppKey = process.env.SEAMSYNC_DROPBOX_APP_KEY;
-if (!dropboxAppKey) {
-	console.error("Set SEAMSYNC_DROPBOX_APP_KEY, in the environment or in .env, to the plugin's Dropbox app key.");
-	process.exit(1);
-}
+const dropboxAppKey = process.env.SEAMSYNC_DROPBOX_APP_KEY ?? "";
+if (dropboxAppKey === "") console.warn("SEAMSYNC_DROPBOX_APP_KEY is not set: this build cannot connect to Dropbox.");
 
 // Obsidian provides these at runtime; bundling them would ship a second copy.
 const external = [
