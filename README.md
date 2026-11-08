@@ -175,6 +175,15 @@ The git hooks (lefthook.yml) check:
 - pre-push: the build, the tests with coverage, knip, `pnpm audit`, and
   a secret scan of the commits being pushed.
 
+Releases are built by the GitHub Actions workflow
+[.github/workflows/release.yml](.github/workflows/release.yml), started
+by pushing a tag equal to the version in `manifest.json` and
+`package.json` (`X.Y.Z`, no `v` prefix). It takes the key from the
+repository's Actions secret `SEAMSYNC_DROPBOX_APP_KEY`, which the
+maintainer creates in the repository's settings, and stops when that
+secret is unset or empty, attests `main.js` and `styles.css`, and
+creates a draft release, which the maintainer publishes by hand.
+
 ## Testing
 
 - `pnpm test` runs the unit tests and the tests of the whole plugin on a
