@@ -63,11 +63,12 @@ the configuration folder categories you turn on.
 
 ## Installation
 
-Seamsync is not in the Obsidian community plugin list. To install it, build
-it from source (see [Development](#development)) and copy
-`dist/main.js`, `dist/manifest.json` and `dist/styles.css` into
-`<vault>/.obsidian/plugins/seamsync/`, then enable **Seamsync** in
-**Settings → Community plugins**.
+Seamsync is not in the Obsidian community plugin list. To install it,
+download `main.js`, `manifest.json` and `styles.css` from a release of
+this repository and copy them into `<vault>/.obsidian/plugins/seamsync/`,
+then enable **Seamsync** in **Settings → Community plugins**. A build
+from source (see [Development](#development)) connects to Dropbox only
+when it is built with `SEAMSYNC_DROPBOX_APP_KEY` set.
 
 It needs Obsidian 1.11.4 or later.
 
@@ -138,6 +139,10 @@ The design is recorded in [docs/adr/](docs/adr/) and the terms in
   only; this release does not build it, and Dropbox uses conditional writes.
 - [ADR 0004](docs/adr/0004-dropbox-app-folder-access.md): Dropbox App
   Folder access instead of Full Dropbox.
+- [ADR 0005](docs/adr/0005-keyless-build-and-attested-ci-release.md): a
+  build from source has no Dropbox app key and cannot connect; releases
+  are built by a GitHub Actions workflow, which attests `main.js` and
+  `styles.css`.
 
 ## Development
 
