@@ -12,6 +12,10 @@ _Avoid_: Local folder, workspace
 A file's or folder's path relative to the vault root, as Obsidian names it.
 _Avoid_: Local path, file path
 
+**Configuration folder**:
+The vault's own Obsidian configuration folder (Obsidian's `configDir`, usually `.obsidian`): settings and hotkeys, themes and snippets, plugins and the workspace layout; only the categories a device turns on sync, and the workspace layout never does.
+_Avoid_: Config folder, settings folder, `.obsidian` (only its usual name)
+
 **Device**:
 One installation of Obsidian (desktop or mobile) holding its own copy of the vault, identified by a random Device ID and a user-editable device name.
 _Avoid_: Client, machine, instance
