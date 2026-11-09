@@ -79,7 +79,8 @@ export interface AccountAccess {
 export class NoAppKeyError extends Error {
 	override readonly name = "NoAppKeyError";
 
-	constructor() {
+	/** @param variable the name of the build setting that gives the provider's app key, which the user is told to set */
+	constructor(readonly variable: string) {
 		super("this build has no app key for the provider");
 	}
 }

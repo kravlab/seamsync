@@ -333,9 +333,9 @@ describe("failures while connecting", () => {
 		expect(laptop.ui.notices).toEqual([]);
 	});
 
-	it("reports a build without an app key under its own cause, without a detail, and throws it on", async () => {
+	it("reports a build without an app key under its own cause, with neither a detail nor the setting's name, and throws it on", async () => {
 		const laptop = createConnectingDevice(new FakeService(), "laptop");
-		const keyless = new NoAppKeyError();
+		const keyless = new NoAppKeyError("EXAMPLE_APP_KEY");
 		vi.spyOn(laptop.connectStep, "startAuthorization").mockRejectedValue(keyless);
 
 		await expect(createConnectionService(laptop.ports).startAuthorization()).rejects.toBe(keyless);

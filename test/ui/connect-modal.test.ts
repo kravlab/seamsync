@@ -141,7 +141,8 @@ describe("the connect window's failures", () => {
 	])("tells at once, in %s, that a build without an app key cannot connect, offering to copy it", async (language, message) => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const languageStrings = selectStrings(language);
-		const modal = newWindow(serviceFor({ startAuthorization: () => Promise.reject(new NoAppKeyError()) }), languageStrings);
+		const keyless = new NoAppKeyError("SEAMSYNC_DROPBOX_APP_KEY");
+		const modal = newWindow(serviceFor({ startAuthorization: () => Promise.reject(keyless) }), languageStrings);
 
 		await vi.waitFor(() => expect(modal.contentEl.querySelector(".seamsync-message")?.textContent).toBe(message));
 		button(modal, languageStrings.copyError)?.click();
@@ -150,6 +151,17 @@ describe("the connect window's failures", () => {
 		expect(button(modal, languageStrings.openDropbox)).toBeUndefined();
 		expect(clipboard.writeText).toHaveBeenCalledWith(message);
 		expect(consoleError).not.toHaveBeenCalled();
+	});
+
+	it("names in that message the build setting the failure carries", async () => {
+		const keyless = new NoAppKeyError("EXAMPLE_APP_KEY");
+		const modal = newWindow(serviceFor({ startAuthorization: () => Promise.reject(keyless) }), strings);
+
+		await vi.waitFor(() =>
+			expect(modal.contentEl.querySelector(".seamsync-message")?.textContent).toBe(
+				fill(strings.noAppKey, { variable: "EXAMPLE_APP_KEY" }),
+			),
+		);
 	});
 
 	it("shows a refused code with the service's answer and a button that copies both", async () => {

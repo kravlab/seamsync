@@ -15,6 +15,7 @@ import {
 	type RootCandidate,
 } from "../../engine/connect-step";
 import { ProviderError, type Provider } from "../../engine/provider";
+import { DROPBOX_APP_KEY_VARIABLE } from "./app-key";
 import { DropboxClient, exchangeCode } from "./client";
 import { writeFailure } from "./errors";
 import type { DropboxOptions, DropboxTransfers } from "./options";
@@ -37,7 +38,7 @@ export function createDropboxConnectStep({ appKey, http, clock, transfers }: Dro
 
 		async startAuthorization(): Promise<AuthorizationAttempt> {
 			// Without a key the authorize page only shows a Dropbox error (ADR 0005).
-			if (appKey === "") throw new NoAppKeyError();
+			if (appKey === "") throw new NoAppKeyError(DROPBOX_APP_KEY_VARIABLE);
 			const pkce = await createPkce();
 			return {
 				authorizeUrl: authorizeUrl(appKey, pkce.challenge),

@@ -4,8 +4,9 @@ import { fill } from "./i18n/fill";
 import type { Strings } from "./i18n/strings";
 
 /**
- * The message telling the user a provider failure of `category`: "cannot be reached" for
- * failures that pass with time or connectivity, "refused" for the rest.
+ * The message telling the user a provider failure of `category`: "cannot be
+ * reached" for failures that pass with time or connectivity, "refused" for
+ * the rest.
  */
 export function providerErrorMessage(category: ProviderErrorCategory, strings: Strings): string {
 	switch (category) {
