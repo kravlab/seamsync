@@ -44,6 +44,23 @@ of their devices, desktop and mobile. This release syncs through Dropbox.
 Dot-files and dot-folders such as `.git` and `.trash` never sync, except
 the configuration folder categories you turn on.
 
+## Disclosures
+
+- **Network use.** Seamsync sends the vault's files over the network to
+  your Dropbox, and downloads from it the files your other devices
+  synced. Its only network requests go to Dropbox.
+- **Dropbox account.** Seamsync needs a Dropbox account: without one,
+  it cannot sync.
+- **Vault enumeration.** Seamsync lists every file and folder Obsidian
+  shows in the vault, and everything in the configuration folder,
+  because it syncs the whole vault: each sync compares this list with
+  the Remote and the sync snapshot to find what changed. Listing is
+  not syncing: configuration categories you have not turned on are
+  listed but not synced.
+- **Clipboard.** Seamsync only writes to the clipboard, and only when
+  you select **Copy error** in the connect window or **Copy for a bug
+  report** in the sync window. It never reads the clipboard.
+
 ## Installation
 
 Seamsync is not in the Obsidian community plugin list. To install it, build
