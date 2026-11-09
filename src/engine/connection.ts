@@ -276,7 +276,7 @@ export function createConnectionService(ports: ConnectionPorts): ConnectionServi
 		try {
 			return await step();
 		} catch (error) {
-			ui.reportConnectFailure(connectFailureOf(error));
+			ui.reportConnectFailure(loggedFailure(connectFailureOf(error)));
 			throw error;
 		}
 	}
@@ -490,18 +490,30 @@ export function createConnectionService(ports: ConnectionPorts): ConnectionServi
 
 /**
  * A failure thrown while connecting, as `connectFailureOf` tells it: a
- * provider failure by its category, a build without an app key, or a bug.
+ * build without an app key, with the name of the build setting that gives
+ * the key; or a provider failure by its category, or a bug, with its
+ * detail.
  */
-export interface ThrownConnectFailure extends ConnectFailure {
-	readonly cause: ProviderErrorCategory | "noAppKey" | "bug";
-}
+export type ThrownConnectFailure =
+	| { readonly cause: "noAppKey"; readonly variable: string }
+	| (ConnectFailure & { readonly cause: Extract<ConnectFailureCause, ProviderErrorCategory | "bug"> });
 
 /**
  * The failure `error` reports while connecting: a build without an app key
- * by its own cause, which tells all there is; a provider failure by its
- * category and anything else as a bug, each with its detail.
+ * by its own cause and the build setting that gives the key, which tell all
+ * there is; a provider failure by its category and anything else as a bug,
+ * each with its detail.
  */
 export function connectFailureOf(error: unknown): ThrownConnectFailure {
-	if (error instanceof NoAppKeyError) return { cause: "noAppKey" };
+	if (error instanceof NoAppKeyError) return { cause: "noAppKey", variable: error.variable };
 	return { cause: error instanceof ProviderError ? error.failure.category : "bug", ...detailField(error) };
+}
+
+/**
+ * The `ConnectFailure` that goes to the activity log for `failure`: its
+ * cause and detail only, so the build setting's name, which only the
+ * connect window tells the user, is not stored.
+ */
+function loggedFailure(failure: ThrownConnectFailure): ConnectFailure {
+	return failure.cause === "noAppKey" ? { cause: "noAppKey" } : failure;
 }

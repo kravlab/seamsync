@@ -98,12 +98,15 @@ describe("Dropbox login", () => {
 		await expectFailure(attempt.complete(code), "permanent");
 	});
 
-	it("refuses to start a login in a build without an app key, sending nothing", async () => {
+	it("refuses to start a login in a build without an app key, naming the build setting for it and sending nothing", async () => {
 		const clock = new ManualClock();
 		const dropbox = new FakeDropbox("test-app-key", clock);
 		const connectStep = createDropboxConnectStep({ appKey: "", http: dropbox.requestUrl, clock, transfers: testTransfers() });
 
-		expect(await rejection(connectStep.startAuthorization())).toBeInstanceOf(NoAppKeyError);
+		const failure = await rejection(connectStep.startAuthorization());
+
+		expect(failure).toBeInstanceOf(NoAppKeyError);
+		expect(failure).toMatchObject({ variable: "SEAMSYNC_DROPBOX_APP_KEY" });
 		expect(dropbox.requests).toEqual([]);
 	});
 });

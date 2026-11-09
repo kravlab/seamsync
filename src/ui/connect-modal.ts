@@ -8,7 +8,6 @@ import {
 	type RemoteCandidate,
 	type RemoteChooser,
 } from "../engine/connection";
-import { DROPBOX_APP_KEY_VARIABLE } from "../providers/dropbox/app-key";
 import { defaultDeviceName } from "./device-name";
 import { copiedError, type ScreenMessage } from "./connect-error-text";
 import { detailLine, errorDetailLine, providerErrorMessage } from "./error-message";
@@ -288,20 +287,21 @@ export class ConnectModal extends Modal {
 	/**
 	 * The message telling `error`, a failure while connecting, by its cause
 	 * as `connectFailureOf` tells it: a build without an app key as such,
-	 * with nothing more to tell; a bug as "connecting failed unexpectedly",
-	 * also logged to the console for the bug report; a provider failure as
-	 * the provider answered. Under the last two, what went wrong.
+	 * naming the build setting that gives the key, with nothing more to
+	 * tell; a bug as "connecting failed unexpectedly", also logged to the
+	 * console for the bug report; a provider failure as the provider
+	 * answered. Under the last two, what went wrong.
 	 */
 	private failureMessage(error: unknown): ScreenMessage {
-		const { cause } = connectFailureOf(error);
-		switch (cause) {
+		const failure = connectFailureOf(error);
+		switch (failure.cause) {
 			case "noAppKey":
-				return { text: fill(this.strings.noAppKey, { variable: DROPBOX_APP_KEY_VARIABLE }) };
+				return { text: fill(this.strings.noAppKey, { variable: failure.variable }) };
 			case "bug":
 				console.error("seamsync: connecting failed unexpectedly", error);
 				return { text: this.strings.connectUnexpected, detailLine: errorDetailLine(error, this.strings) };
 			default:
-				return { text: providerErrorMessage(cause, this.strings), detailLine: errorDetailLine(error, this.strings) };
+				return { text: providerErrorMessage(failure.cause, this.strings), detailLine: errorDetailLine(error, this.strings) };
 		}
 	}
 }
