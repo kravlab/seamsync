@@ -21,7 +21,7 @@ jobs:
       id-token: write # signs the attestation
       attestations: write # stores the attestation
     env:
-      # Only the build's tools, at the versions mise.toml names.
+      # Only the build's tools, as mise.toml names them.
       MISE_ENABLE_TOOLS: node,pnpm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
