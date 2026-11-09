@@ -81,7 +81,8 @@ describe("stored activity log", () => {
 
 	it("keeps every connect failure that is not a provider failure", () => {
 		const refusals: ActivityEvent[] = [
-			{ at: 7, kind: "connectFailed", cause: "codeRejected", detail: "invalid_grant" },
+			{ at: 8, kind: "connectFailed", cause: "codeRejected", detail: "invalid_grant" },
+			{ at: 7, kind: "connectFailed", cause: "noAppKey" },
 			{ at: 6, kind: "connectFailed", cause: "otherAccount" },
 			{ at: 5, kind: "connectFailed", cause: "nameTaken" },
 			{ at: 4, kind: "connectFailed", cause: "invalidName" },

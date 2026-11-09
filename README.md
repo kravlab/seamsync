@@ -44,13 +44,31 @@ of their devices, desktop and mobile. This release syncs through Dropbox.
 Dot-files and dot-folders such as `.git` and `.trash` never sync, except
 the configuration folder categories you turn on.
 
+## Disclosures
+
+- **Network use.** Seamsync sends the vault's files over the network to
+  your Dropbox, and downloads from it the files your other devices
+  synced. Its only network requests go to Dropbox.
+- **Dropbox account.** Seamsync needs a Dropbox account: without one,
+  it cannot sync.
+- **Vault enumeration.** Seamsync lists every file and folder Obsidian
+  shows in the vault, and everything in the configuration folder,
+  because it syncs the whole vault: each sync compares this list with
+  the Remote and the sync snapshot to find what changed. Listing is
+  not syncing: configuration categories you have not turned on are
+  listed but not synced.
+- **Clipboard.** Seamsync only writes to the clipboard, and only when
+  you select **Copy error** in the connect window or **Copy for a bug
+  report** in the sync window. It never reads the clipboard.
+
 ## Installation
 
-Seamsync is not in the Obsidian community plugin list. To install it, build
-it from source (see [Development](#development)) and copy
-`dist/main.js`, `dist/manifest.json` and `dist/styles.css` into
-`<vault>/.obsidian/plugins/seamsync/`, then enable **Seamsync** in
-**Settings → Community plugins**.
+Seamsync is not in the Obsidian community plugin list. To install it,
+download `main.js`, `manifest.json` and `styles.css` from a release of
+this repository and copy them into `<vault>/.obsidian/plugins/seamsync/`,
+then enable **Seamsync** in **Settings → Community plugins**. A build
+from source (see [Development](#development)) connects to Dropbox only
+when it is built with `SEAMSYNC_DROPBOX_APP_KEY` set.
 
 It needs Obsidian 1.11.4 or later.
 
@@ -121,6 +139,10 @@ The design is recorded in [docs/adr/](docs/adr/) and the terms in
   only; this release does not build it, and Dropbox uses conditional writes.
 - [ADR 0004](docs/adr/0004-dropbox-app-folder-access.md): Dropbox App
   Folder access instead of Full Dropbox.
+- [ADR 0005](docs/adr/0005-keyless-build-and-attested-ci-release.md): a
+  build from source has no Dropbox app key and cannot connect; releases
+  are built by a GitHub Actions workflow, which attests `main.js` and
+  `styles.css`.
 
 ## Development
 
@@ -145,8 +167,8 @@ A dev container is provided in [.devcontainer/](.devcontainer/).
 
 The build bundles a Dropbox app key, which is never committed. Set
 `SEAMSYNC_DROPBOX_APP_KEY` in the environment or in a git-ignored `.env`
-file; the build stops with an error without it. The app must have App
-Folder access.
+file. A build without it succeeds with a warning, but cannot connect to
+Dropbox: its connect window says so. The app must have App Folder access.
 
 | Command              | What it does                                                 |
 | -------------------- | ------------------------------------------------------------ |
@@ -174,6 +196,15 @@ The git hooks (lefthook.yml) check:
   lines up to 72, and no Claude Code session link;
 - pre-push: the build, the tests with coverage, knip, `pnpm audit`, and
   a secret scan of the commits being pushed.
+
+Releases are built by the GitHub Actions workflow
+[.github/workflows/release.yml](.github/workflows/release.yml), started
+by pushing a tag equal to the version in `manifest.json` and
+`package.json` (`X.Y.Z`, no `v` prefix). It takes the key from the
+repository's Actions secret `SEAMSYNC_DROPBOX_APP_KEY`, which the
+maintainer creates in the repository's settings, and stops when that
+secret is unset or empty, attests `main.js` and `styles.css`, and
+creates a draft release, which the maintainer publishes by hand.
 
 ## Testing
 

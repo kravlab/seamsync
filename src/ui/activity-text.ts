@@ -45,6 +45,8 @@ function failureLine(template: string, cause: string, detail: string | undefined
 /** Why connecting failed, in the user's language: a refusal of its own, or a cause a sync can fail for too. */
 function connectFailureText(cause: ConnectFailureCause, strings: Strings): string {
 	switch (cause) {
+		case "noAppKey":
+			return strings.connectFailureNoAppKey;
 		case "codeRejected":
 			return strings.connectFailureCodeRejected;
 		case "otherAccount":

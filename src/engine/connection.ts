@@ -6,7 +6,7 @@
  * the Connection in the Device store, the account check, setting up the
  * Remote's Metadata folder, and the local cleanup on disconnect.
  */
-import type { AccountAccess, Authorization, ConnectStep } from "./connect-step";
+import { NoAppKeyError, type AccountAccess, type Authorization, type ConnectStep } from "./connect-step";
 import type { ConnectionEpoch } from "./connection-epoch";
 import { NO_CONFLICTS } from "./conflicts";
 import { detailField } from "./failure-detail";
@@ -38,13 +38,15 @@ import { statusOf } from "./status";
 
 /**
  * Why connecting this device failed (spec of the review fixes, item 1): a
- * provider failure by its category; the service refusing the code; a
- * login to another account; a Remote name taken or holding a slash; a
- * folder the provider cannot sync; another device's First sync in
- * progress there; or an unexpected error, a `bug`.
+ * provider failure by its category; a build without the provider's app
+ * key; the service refusing the code; a login to another account; a
+ * Remote name taken or holding a slash; a folder the provider cannot
+ * sync; another device's First sync in progress there; or an unexpected
+ * error, a `bug`.
  */
 export type ConnectFailureCause =
 	| ProviderErrorCategory
+	| "noAppKey"
 	| "codeRejected"
 	| "otherAccount"
 	| "nameTaken"
@@ -265,7 +267,8 @@ export function createConnectionService(ports: ConnectionPorts): ConnectionServi
 
 	/**
 	 * Runs one step of connecting; whatever it throws is reported for the
-	 * activity log with its detail, a provider failure by its category and
+	 * activity log, a build without an app key by its own cause, and
+	 * otherwise with its detail, a provider failure by its category and
 	 * anything else as a bug, then thrown on to the connect window, which
 	 * tells the user.
 	 */
@@ -273,8 +276,7 @@ export function createConnectionService(ports: ConnectionPorts): ConnectionServi
 		try {
 			return await step();
 		} catch (error) {
-			const cause = error instanceof ProviderError ? error.failure.category : "bug";
-			ui.reportConnectFailure({ cause, ...detailField(error) });
+			ui.reportConnectFailure(loggedFailure(connectFailureOf(error)));
 			throw error;
 		}
 	}
@@ -484,4 +486,34 @@ export function createConnectionService(ports: ConnectionPorts): ConnectionServi
 		if (connection === null || secret === null) throw new ProviderError({ category: "auth" }, "no Connection with a secret");
 		return { connection, remote: connectStep.access(secret).openRoot(connection.remoteRoot) };
 	}
+}
+
+/**
+ * A failure thrown while connecting, as `connectFailureOf` tells it: a
+ * build without an app key, with the name of the build setting that gives
+ * the key; or a provider failure by its category, or a bug, with its
+ * detail.
+ */
+export type ThrownConnectFailure =
+	| { readonly cause: "noAppKey"; readonly variable: string }
+	| (ConnectFailure & { readonly cause: Extract<ConnectFailureCause, ProviderErrorCategory | "bug"> });
+
+/**
+ * The failure `error` reports while connecting: a build without an app key
+ * by its own cause and the build setting that gives the key, which tell all
+ * there is; a provider failure by its category and anything else as a bug,
+ * each with its detail.
+ */
+export function connectFailureOf(error: unknown): ThrownConnectFailure {
+	if (error instanceof NoAppKeyError) return { cause: "noAppKey", variable: error.variable };
+	return { cause: error instanceof ProviderError ? error.failure.category : "bug", ...detailField(error) };
+}
+
+/**
+ * The `ConnectFailure` that goes to the activity log for `failure`: its
+ * cause and detail only, so the build setting's name, which only the
+ * connect window tells the user, is not stored.
+ */
+function loggedFailure(failure: ThrownConnectFailure): ConnectFailure {
+	return failure.cause === "noAppKey" ? { cause: "noAppKey" } : failure;
 }

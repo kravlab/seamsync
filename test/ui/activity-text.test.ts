@@ -102,6 +102,11 @@ describe("activityLine", () => {
 			"Connecting failed. Another device is doing its first sync with this folder.",
 			"Не удалось подключиться. Другое устройство выполняет первую синхронизацию с этой папкой.",
 		],
+		[
+			"noAppKey",
+			"Connecting failed. This build has no Dropbox app key.",
+			"Не удалось подключиться. В этой сборке нет ключа приложения Dropbox.",
+		],
 		["bug", "Connecting failed. The plugin hit an error.", "Не удалось подключиться. В плагине произошла ошибка."],
 	] as const)("tells a connect failure for %s in English and Russian", (cause, english, russian) => {
 		const event = { at: AFTERNOON, kind: "connectFailed", cause } as const;

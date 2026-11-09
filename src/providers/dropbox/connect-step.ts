@@ -7,8 +7,15 @@
  * Paths are App-Folder paths: "" is the App Folder itself, and a root is
  * "/<folder name>" as Dropbox displays it.
  */
-import type { AccountAccess, ConnectStep, AuthorizationAttempt, RootCandidate } from "../../engine/connect-step";
+import {
+	NoAppKeyError,
+	type AccountAccess,
+	type ConnectStep,
+	type AuthorizationAttempt,
+	type RootCandidate,
+} from "../../engine/connect-step";
 import { ProviderError, type Provider } from "../../engine/provider";
+import { DROPBOX_APP_KEY_VARIABLE } from "./app-key";
 import { DropboxClient, exchangeCode } from "./client";
 import { writeFailure } from "./errors";
 import type { DropboxOptions, DropboxTransfers } from "./options";
@@ -30,6 +37,8 @@ export function createDropboxConnectStep({ appKey, http, clock, transfers }: Dro
 		providerId: DROPBOX_PROVIDER_ID,
 
 		async startAuthorization(): Promise<AuthorizationAttempt> {
+			// Without a key the authorize page only shows a Dropbox error (ADR 0005).
+			if (appKey === "") throw new NoAppKeyError(DROPBOX_APP_KEY_VARIABLE);
 			const pkce = await createPkce();
 			return {
 				authorizeUrl: authorizeUrl(appKey, pkce.challenge),

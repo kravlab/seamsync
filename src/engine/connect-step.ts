@@ -6,9 +6,10 @@
  * storing the secret and the Connection, the account check and the
  * cleanup on disconnect.
  *
- * Every failure is thrown as a `ProviderError`. A code the service refuses
- * during login (reused, expired or unknown) is an `auth` failure, and
- * nothing else in completing a login is.
+ * Every failure is thrown as a `ProviderError`, except a login that cannot
+ * start in a build without an app key, a `NoAppKeyError`. A code the
+ * service refuses during login (reused, expired or unknown) is an `auth`
+ * failure, and nothing else in completing a login is.
  */
 import type { Provider } from "./provider";
 
@@ -70,6 +71,20 @@ export interface AccountAccess {
 	revoke(): Promise<void>;
 }
 
+/**
+ * Why a login cannot start: this build of the plugin carries no app key
+ * for the provider, as a build from source without one does (ADR 0005).
+ * The connect step throws it before any request.
+ */
+export class NoAppKeyError extends Error {
+	override readonly name = "NoAppKeyError";
+
+	/** @param variable the name of the build setting that gives the provider's app key, which the user is told to set */
+	constructor(readonly variable: string) {
+		super("this build has no app key for the provider");
+	}
+}
+
 /** One provider's connect step. */
 export interface ConnectStep {
 	/**
@@ -77,7 +92,7 @@ export interface ConnectStep {
 	 * stores the secret under `providerSecretId(providerId)` (ports.ts).
 	 */
 	readonly providerId: string;
-	/** Starts a login. */
+	/** Starts a login; fails with `NoAppKeyError` in a build without an app key. */
 	startAuthorization(): Promise<AuthorizationAttempt>;
 	/** Opens the provider with a stored secret. */
 	access(secret: string): AccountAccess;

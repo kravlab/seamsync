@@ -1,0 +1,48 @@
+# Builds a release from a pushed tag (ADR 0005): checks that the tag
+# equals the version in manifest.json and package.json and that the
+# Dropbox app key is set, builds with the key, attests main.js and
+# styles.css, and creates a draft release with the plugin's files for the
+# maintainer to publish. No tests or linters: the git hooks run them
+# before every push.
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # creates the draft release
+      id-token: write # signs the attestation
+      attestations: write # stores the attestation
+    env:
+      # Only the build's tools, as mise.toml names them.
+      MISE_ENABLE_TOOLS: node,pnpm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: a release never builds from files another workflow wrote.
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          cache: false
+      - name: Release checks
+        run: scripts/release-checks.sh "$GITHUB_REF_NAME"
+        env: &dropbox-app-key
+          SEAMSYNC_DROPBOX_APP_KEY: ${{ secrets.SEAMSYNC_DROPBOX_APP_KEY }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+        env: *dropbox-app-key
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/main.js, dist/styles.css
+      - name: Draft release
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes dist/main.js dist/manifest.json dist/styles.css
+        env:
+          GH_TOKEN: ${{ github.token }}
