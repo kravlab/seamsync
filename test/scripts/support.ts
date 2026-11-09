@@ -31,8 +31,16 @@ export interface TempRepo {
 	git(args: string[], cwd?: string): string;
 	/** Stages everything and commits it; returns the new commit's oid. */
 	commit(message: string): string;
-	/** Runs a script of the repository (relative path) and returns what it did. */
-	run(script: string, args?: string[], options?: { cwd?: string; input?: string }): RunResult;
+	/**
+	 * Runs a script of the repository (relative path) and returns what it did.
+	 * `env` adds variables to the scripts' environment, or, with `undefined`,
+	 * removes them.
+	 */
+	run(
+		script: string,
+		args?: string[],
+		options?: { cwd?: string; input?: string; env?: Record<string, string | undefined> },
+	): RunResult;
 	/** Deletes the repository. */
 	remove: () => void;
 }
@@ -61,8 +69,14 @@ function scriptEnv(): Record<string, string | undefined> {
 	};
 }
 
-function spawn(command: string, args: string[], cwd: string, input?: string): RunResult {
-	const result = spawnSync(command, args, { cwd, env: scriptEnv(), encoding: "utf8", input });
+/** Runs a command with scriptEnv() plus `options.env` (where `undefined` removes a variable), with `options.input` on stdin. */
+function spawn(
+	command: string,
+	args: string[],
+	cwd: string,
+	options: { input?: string; env?: Record<string, string | undefined> } = {},
+): RunResult {
+	const result = spawnSync(command, args, { cwd, env: { ...scriptEnv(), ...options.env }, encoding: "utf8", input: options.input });
 	if (result.error) throw result.error;
 	return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
@@ -100,7 +114,7 @@ export function createRepo(scripts: string[]): TempRepo {
 			return git(["rev-parse", "HEAD"]).trim();
 		},
 		run(script, args = [], options = {}) {
-			return spawn(join(dir, script), args, options.cwd ?? dir, options.input);
+			return spawn(join(dir, script), args, options.cwd ?? dir, { input: options.input, env: options.env });
 		},
 		remove,
 	};

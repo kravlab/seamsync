@@ -253,6 +253,9 @@ export const en = {
 	errorFailed: "Dropbox refused the request. Try again later.",
 	/** Connecting failed on an error the plugin did not expect, a bug. */
 	connectUnexpected: "Connecting failed unexpectedly.",
+	/** This build has no Dropbox app key, so no login can start (ADR 0005); how to get one that has. `{variable}` is the build setting's name. */
+	noAppKey:
+		"This build of the plugin has no Dropbox app key, so it cannot connect to Dropbox. Install the official release, or build the plugin with {variable} set.",
 	/** Under a failure's message: what went wrong, `{detail}`, untranslated: Dropbox's answer, or an error's name and message. */
 	errorDetails: "Details: {detail}",
 	/** The connect window's button copying the failure shown. */
@@ -427,6 +430,7 @@ export const en = {
 	failureUnreadableSettings: "The shared settings in Dropbox are missing or unreadable",
 	failureBug: "The plugin hit an error",
 	/** Why connecting failed, for the refusals that are not a provider failure. */
+	connectFailureNoAppKey: "This build has no Dropbox app key",
 	connectFailureCodeRejected: "Dropbox did not accept the code",
 	connectFailureOtherAccount: "This device is connected to a different Dropbox account",
 	connectFailureNameTaken: "A folder with this name already exists",

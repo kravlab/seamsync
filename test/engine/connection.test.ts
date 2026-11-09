@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { NoAppKeyError } from "../../src/engine/connect-step";
 import { createConnectionService, type AuthorizationOutcome } from "../../src/engine/connection";
 import { SimulatedCrash } from "../fakes/fake-provider";
 import { connectTestDevice } from "../fakes/test-device";
@@ -329,6 +330,17 @@ describe("failures while connecting", () => {
 		});
 
 		expect(laptop.ui.connectFailures).toEqual([{ cause: "permanent", detail: "injected permanent on startAuthorization" }]);
+		expect(laptop.ui.notices).toEqual([]);
+	});
+
+	it("reports a build without an app key under its own cause, with neither a detail nor the setting's name, and throws it on", async () => {
+		const laptop = createConnectingDevice(new FakeService(), "laptop");
+		const keyless = new NoAppKeyError("EXAMPLE_APP_KEY");
+		vi.spyOn(laptop.connectStep, "startAuthorization").mockRejectedValue(keyless);
+
+		await expect(createConnectionService(laptop.ports).startAuthorization()).rejects.toBe(keyless);
+
+		expect(laptop.ui.connectFailures).toEqual([{ cause: "noAppKey" }]);
 		expect(laptop.ui.notices).toEqual([]);
 	});
 

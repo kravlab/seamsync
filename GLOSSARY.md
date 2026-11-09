@@ -12,6 +12,10 @@ _Avoid_: Local folder, workspace
 A file's or folder's path relative to the vault root, as Obsidian names it.
 _Avoid_: Local path, file path
 
+**Configuration folder**:
+The vault's own Obsidian configuration folder (Obsidian's `configDir`, usually `.obsidian`): settings and hotkeys, themes and snippets, plugins and the workspace layout; only the categories a device turns on sync, and the workspace layout never does.
+_Avoid_: Config folder, settings folder, `.obsidian` (only its usual name)
+
 **Device**:
 One installation of Obsidian (desktop or mobile) holding its own copy of the vault, identified by a random Device ID and a user-editable device name.
 _Avoid_: Client, machine, instance
@@ -43,6 +47,10 @@ _Avoid_: Login, session, account link
 **Login code**:
 The one-time code a provider shows in the browser after the user allows access, which the user pastes into the plugin to create a Connection.
 _Avoid_: Key, token, app key (that identifies the plugin's app at the provider)
+
+**App key**:
+The public identifier of the plugin's own app at a provider, part of every build that can connect; a build without one cannot connect.
+_Avoid_: Client ID, API key, client secret
 
 **Metadata folder**:
 The single plugin-owned folder at the root of a Remote; the only place on a Remote that holds anything other than vault files.

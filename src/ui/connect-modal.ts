@@ -1,13 +1,13 @@
 import { Modal, Notice, Setting, type App } from "obsidian";
-import type {
-	ConnectionService,
-	CreateRemoteOutcome,
-	JoinOutcome,
-	PendingAuthorization,
-	RemoteCandidate,
-	RemoteChooser,
+import {
+	connectFailureOf,
+	type ConnectionService,
+	type CreateRemoteOutcome,
+	type JoinOutcome,
+	type PendingAuthorization,
+	type RemoteCandidate,
+	type RemoteChooser,
 } from "../engine/connection";
-import { ProviderError } from "../engine/provider";
 import { defaultDeviceName } from "./device-name";
 import { copiedError, type ScreenMessage } from "./connect-error-text";
 import { detailLine, errorDetailLine, providerErrorMessage } from "./error-message";
@@ -268,10 +268,7 @@ export class ConnectModal extends Modal {
 
 	/**
 	 * Runs one request unless another is running (then yields undefined). A
-	 * failure comes back with the message telling it and what went wrong:
-	 * a provider failure as the provider answered, any other error, a bug,
-	 * as "connecting failed unexpectedly" with its name and message, also
-	 * logged to the console for the bug report.
+	 * failure comes back with the message `failureMessage` gives it.
 	 */
 	private async attempt<T>(
 		request: () => Promise<T>,
@@ -281,11 +278,30 @@ export class ConnectModal extends Modal {
 		try {
 			return { ok: true, value: await request() };
 		} catch (error) {
-			if (!(error instanceof ProviderError)) console.error("seamsync: connecting failed unexpectedly", error);
-			const text = error instanceof ProviderError ? providerErrorMessage(error, this.strings) : this.strings.connectUnexpected;
-			return { ok: false, message: { text, detailLine: errorDetailLine(error, this.strings) } };
+			return { ok: false, message: this.failureMessage(error) };
 		} finally {
 			this.busy = false;
+		}
+	}
+
+	/**
+	 * The message telling `error`, a failure while connecting, by its cause
+	 * as `connectFailureOf` tells it: a build without an app key as such,
+	 * naming the build setting that gives the key, with nothing more to
+	 * tell; a bug as "connecting failed unexpectedly", also logged to the
+	 * console for the bug report; a provider failure as the provider
+	 * answered. Under the last two, what went wrong.
+	 */
+	private failureMessage(error: unknown): ScreenMessage {
+		const failure = connectFailureOf(error);
+		switch (failure.cause) {
+			case "noAppKey":
+				return { text: fill(this.strings.noAppKey, { variable: failure.variable }) };
+			case "bug":
+				console.error("seamsync: connecting failed unexpectedly", error);
+				return { text: this.strings.connectUnexpected, detailLine: errorDetailLine(error, this.strings) };
+			default:
+				return { text: providerErrorMessage(failure.cause, this.strings), detailLine: errorDetailLine(error, this.strings) };
 		}
 	}
 }

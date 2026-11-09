@@ -86,6 +86,7 @@ const FAILURE_CAUSES: Record<SyncFailureCause, true> = {
 
 /** The causes connecting fails for besides a provider failure; a record, so a cause added to the type must be added here. */
 const CONNECT_REFUSALS: Record<Exclude<ConnectFailureCause, ProviderErrorCategory>, true> = {
+	noAppKey: true,
 	codeRejected: true,
 	otherAccount: true,
 	nameTaken: true,
