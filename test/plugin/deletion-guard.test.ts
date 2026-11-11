@@ -98,6 +98,7 @@ describe("the Deletion guard window", { timeout: DEVICE_TEST_TIMEOUT_MS }, () =>
 		const guard = lastGuard(device);
 
 		expect(guard.modalEl.classList).toContain("seamsync-phone");
+		expect(guard.modalEl.classList).not.toContain("seamsync-phone-fields");
 		buttonIn(guard.contentEl, strings.guardRestore).click();
 
 		await vi.waitFor(() => expect(filesOn(device)).toEqual(Object.keys(NOTES).sort()), PLUGIN_WAIT);

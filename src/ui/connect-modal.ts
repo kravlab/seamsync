@@ -73,7 +73,7 @@ export class ConnectModal extends Modal {
 		private readonly onConnected: (kind: "connected" | "reconnected") => void,
 	) {
 		super(app);
-		fitForPhone(this);
+		fitForPhone(this, { textFields: true });
 	}
 
 	override onOpen(): void {

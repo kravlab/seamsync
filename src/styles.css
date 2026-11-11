@@ -169,6 +169,20 @@
 	min-height: 44px;
 }
 
+/* A modal with text fields on a phone (fitForPhone's `textFields`): at
+   the top of the screen, below the status bar, instead of centred, and no
+   taller than the space above the keyboard, whose height Obsidian reports
+   in --keyboard-height (0px while it is closed). Its content then scrolls
+   (Obsidian's `.is-phone .modal-content`), so every field and its buttons
+   can be brought above the keyboard, as in the settings tab. The modal
+   container is a flex box centring the modal: a bottom margin of `auto`
+   takes the free space below it. */
+.modal.seamsync-phone-fields {
+	--dialog-max-height: calc(100vh - var(--safe-area-inset-top) - var(--keyboard-height));
+	margin-top: var(--safe-area-inset-top);
+	margin-bottom: auto;
+}
+
 /* The status dot, in the status bar item and the Sync window: its colour
    tells the state at a glance (status-look.ts). */
 .seamsync-dot {

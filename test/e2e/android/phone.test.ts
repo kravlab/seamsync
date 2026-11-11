@@ -1,9 +1,10 @@
 // The Android run's manual checks, on one phone in the order they need it:
-// first what needs no login (checks 3, 14, 17 and 19), with check 3 offline so
-// nothing is sent; then the login through Dropbox's authorize page (check 1,
-// which also reads the onboarding), the First sync window (check 14), the 50 MB
-// file (check 16), and last Disconnect (check 2), which deletes the run's
-// Remote folder first. A later check fails when the login it needs failed.
+// first what needs no login (checks 3, 14, 17, 19 and 21), with check 3
+// offline so nothing is sent; then the login through Dropbox's authorize page
+// (check 1, during which check 21 measures the connect window's Remote screen,
+// and which also reads the onboarding), the First sync window (check 14), the
+// 50 MB file (check 16), and last Disconnect (check 2), which deletes the
+// run's Remote folder first. A later check fails when the login it needs failed.
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -18,6 +19,7 @@ import {
 	openConnectWindowProgram,
 } from "../support/dropbox-login";
 import { dropboxAppKey, dropboxHelpers } from "../support/dropbox-page";
+import { describePhoneKeyboard, itRemoteScreenAboveKeyboard, KEYBOARD_CHECK_TITLE } from "../support/keyboard-page";
 import {
 	CALL_MS,
 	describeOnboardingHelp,
@@ -126,9 +128,11 @@ describeOnboardingHelp("check 19 (partial: no settings row): onboarding and help
 	settingsRow: false,
 });
 
+describePhoneKeyboard(KEYBOARD_CHECK_TITLE, phone);
+
 describe("check 1: connecting through the phone's real requestUrl", () => {
 	it(
-		"logs in through Dropbox's authorize page and connects to a new Remote folder",
+		"logs in through Dropbox's authorize page and reaches the Remote screen",
 		async () => {
 			const strings = await phone().strings();
 			await phone().closeBrowser();
@@ -138,10 +142,35 @@ describe("check 1: connecting through the phone's real requestUrl", () => {
 				(await button(${JSON.stringify(strings.openDropbox)})).click();`);
 			const code = await authorize(phone());
 			await phone().showObsidian();
-			const connected = (await phone().eval(
+			// The window stays open on the Remote screen: check 21 measures it, then the next test goes on in it.
+			await phone().eval(
 				`
 				${PAGE_HELPERS}
 				${enterCodeProgram(code, strings)}
+				await until(
+					() => [...activeDocument.querySelectorAll(".modal .setting-item")].find((item) => item.querySelector(".setting-item-name")?.textContent === ${JSON.stringify(strings.newFolder)}),
+					60000,
+					"the Remote screen",
+				);`,
+				LOGIN_TIMEOUT_MS,
+			);
+		},
+		CALL_MS * 2 + LOGIN_TIMEOUT_MS * 2 + TEST_HEADROOM_MS,
+	);
+});
+
+describe(KEYBOARD_CHECK_TITLE, () => {
+	itRemoteScreenAboveKeyboard(phone);
+});
+
+describe("check 1: connecting through the phone's real requestUrl", () => {
+	it(
+		"connects to a new Remote folder",
+		async () => {
+			const strings = await phone().strings();
+			const connected = (await phone().eval(
+				`
+				${PAGE_HELPERS}
 				${newFolderProgram(RUN_FOLDER, strings)}
 				const notice = await until(() => [...activeDocument.querySelectorAll(".notice")].find((n) => n.textContent === ${JSON.stringify(strings.noticeConnected)}), 60000, "the Connected notice");
 				// A new Connection shows the onboarding, read before it is closed; the first sync starts once it is closed.
@@ -154,7 +183,7 @@ describe("check 1: connecting through the phone's real requestUrl", () => {
 			expect(connected.notice).toBe(strings.noticeConnected);
 			expect(connected.onboarding).toEqual(expectedOnboarding(strings));
 		},
-		CALL_MS * 2 + LOGIN_TIMEOUT_MS * 2 + TEST_HEADROOM_MS,
+		CALL_MS + LOGIN_TIMEOUT_MS + TEST_HEADROOM_MS,
 	);
 });
 

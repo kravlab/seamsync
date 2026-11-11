@@ -119,11 +119,27 @@ Numbers are those of the manual check list. "Vitest", "Desktop" and
     Remote folder holds it. The name-policy change is covered by Vitest
     engine tests only (it needs Remote names Dropbox cannot store).
 
+21. **Windows above the keyboard.** On a phone, the connect window and
+    a conflict block's Edit… dialog open at the top of the screen; with
+    the keyboard open their content scrolls, so each text field and
+    every button in its row can be brought above the keyboard; with the
+    keyboard closed they have their normal size (#15). Vitest: on a
+    phone only these two windows carry the `seamsync-phone-fields`
+    marker. Android (`test/e2e/support/keyboard-page.ts`): focusing the
+    field of the connect window's login screen and of the Edit… dialog
+    opens the real keyboard; the window starts below the status bar and
+    fits above the keyboard, and the field and each button of its row
+    scroll fully above it. Right after check 1's login, the Remote
+    screen's Device name and New folder fields are measured the same way.
+
 ## Still checked by hand
 
 - iOS: inspecting Obsidian there needs macOS (Obsidian's developer docs).
 - On an iPhone, connecting to Dropbox by pasting the Login code with
-  the Paste button (#14).
+  the Paste button (#14), and, with the keyboard open, by long-pressing
+  the field and choosing Paste, then pressing Continue; and editing the
+  text of a Conflict block's Edit… dialog with the keyboard open (#15),
+  which also confirms that iOS reports the keyboard's height.
 - Revoking the app on dropbox.com (check 15): only the account owner's
   web session can.
 - The trash honouring Obsidian's "Deleted files" setting (check 11).

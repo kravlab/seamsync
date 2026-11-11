@@ -193,5 +193,7 @@ describe("the status entry point and the Sync window", { timeout: DEVICE_TEST_TI
 			strings.syncWindowTitle,
 		]);
 		for (const modal of modals) expect(modal.modalEl.classList, modal.titleEl.textContent).toContain("seamsync-phone");
+		const withFields = modals.filter((modal) => modal.modalEl.classList.contains("seamsync-phone-fields"));
+		expect(withFields.map((modal) => modal.titleEl.textContent)).toEqual([strings.connectTitle]);
 	});
 });

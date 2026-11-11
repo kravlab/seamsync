@@ -121,11 +121,13 @@ export class AndroidPhone implements LanguagePage {
 
 	/**
 	 * Boots the virtual device, installs Obsidian's APK when the installed
-	 * version is another, clears Obsidian's data and app storage, turns the network on,
-	 * makes the vault through the welcome screen (Create a vault, Continue
-	 * without sync, App storage) and loads the built plugin, written into
-	 * the vault through Obsidian's adapter and turned on through its
-	 * (undocumented) `app.plugins`. A failed start closes the emulator.
+	 * version is another, clears Obsidian's data and app storage, turns the
+	 * network on, has Android show the on-screen keyboard although the virtual
+	 * device has a hardware one (the scenarios focus fields to open it), makes
+	 * the vault through the welcome screen (Create a vault, Continue without
+	 * sync, App storage) and loads the built plugin, written into the vault
+	 * through Obsidian's adapter and turned on through its (undocumented)
+	 * `app.plugins`. A failed start closes the emulator.
 	 */
 	static async start(): Promise<AndroidPhone> {
 		if (existsSync(join(REPO_ROOT, ".env"))) process.loadEnvFile(join(REPO_ROOT, ".env"));
@@ -155,6 +157,7 @@ export class AndroidPhone implements LanguagePage {
 			await adb("shell", "pm", "clear", OBSIDIAN_PACKAGE);
 			await adb("shell", "rm", "-rf", OBSIDIAN_APP_STORAGE);
 			await adb("shell", "cmd", "connectivity", "airplane-mode", "disable");
+			await adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1");
 			await phone.openObsidian();
 			await phone.makeVault();
 			await phone.loadPlugin();
