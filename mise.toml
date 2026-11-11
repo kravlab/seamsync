@@ -21,6 +21,10 @@ minimum_release_age = "5d"
 description = "Type-check, then bundle the plugin into dist/"
 run = "pnpm run build"
 
+[tasks."vault:manual"]
+description = "Create the manual-testing vault, its plugin folder linked to dist/"
+run = "pnpm run vault:manual"
+
 [tasks.typecheck]
 description = "Type-check src/ and test/"
 run = "pnpm run typecheck"

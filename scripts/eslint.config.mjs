@@ -50,4 +50,14 @@ export default defineConfig([
 			"obsidianmd/no-nodejs-modules": "off",
 		},
 	},
+	// The test of scripts/manual-vault.sh checks the vaults the script
+	// creates on disk, so it names their `.obsidian` folder; there is no
+	// Vault#configDir there, and the plugin's ruleset forbids disabling the
+	// rule with a comment.
+	{
+		files: ["test/scripts/manual-vault.test.ts"],
+		rules: {
+			"obsidianmd/hardcoded-config-path": "off",
+		},
+	},
 ]);

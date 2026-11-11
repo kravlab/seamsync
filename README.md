@@ -168,20 +168,21 @@ The build bundles a Dropbox app key, which is never committed. Set
 file. A build without it succeeds with a warning, but cannot connect to
 Dropbox: its connect window says so. The app must have App Folder access.
 
-| Command              | What it does                                                 |
-| -------------------- | ------------------------------------------------------------ |
-| `pnpm build`         | Type-checks, then bundles the plugin into `dist/`, minified. |
-| `pnpm dev`           | Rebuilds `dist/` on every change, with inline source maps.   |
-| `pnpm typecheck`     | Type-checks.                                                 |
-| `pnpm lint`          | Lints with `eslint-plugin-obsidianmd`; any warning fails.    |
-| `pnpm lint:md`       | Lints the tracked Markdown files.                            |
-| `pnpm lint:sh`       | Lints the shell scripts and checks their format.             |
-| `pnpm spell`         | Spell-checks with typos.                                     |
-| `pnpm knip`          | Finds unused files, exports and dependencies.                |
-| `pnpm format`        | Formats the tracked files with Prettier.                     |
-| `pnpm format:check`  | Checks the format, changing nothing.                         |
-| `pnpm test`          | Runs the unit and plugin tests.                              |
-| `pnpm test:coverage` | Runs the tests; fails below the coverage thresholds.         |
+| Command              | What it does                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `pnpm build`         | Type-checks, then bundles the plugin into `dist/`, minified.                       |
+| `pnpm dev`           | Rebuilds `dist/` on every change, with inline source maps.                         |
+| `pnpm vault:manual`  | Creates a test vault in `.e2e/manual-vault/`, its plugin folder linked to `dist/`. |
+| `pnpm typecheck`     | Type-checks.                                                                       |
+| `pnpm lint`          | Lints with `eslint-plugin-obsidianmd`; any warning fails.                          |
+| `pnpm lint:md`       | Lints the tracked Markdown files.                                                  |
+| `pnpm lint:sh`       | Lints the shell scripts and checks their format.                                   |
+| `pnpm spell`         | Spell-checks with typos.                                                           |
+| `pnpm knip`          | Finds unused files, exports and dependencies.                                      |
+| `pnpm format`        | Formats the tracked files with Prettier.                                           |
+| `pnpm format:check`  | Checks the format, changing nothing.                                               |
+| `pnpm test`          | Runs the unit and plugin tests.                                                    |
+| `pnpm test:coverage` | Runs the tests; fails below the coverage thresholds.                               |
 
 `mise run check` runs every check that changes nothing.
 
@@ -213,6 +214,32 @@ creates a draft release, which the maintainer publishes by hand.
   `pnpm test:e2e:pair` drive a real Obsidian on the desktop and on an
   Android emulator. They run on Linux only and need a setup done once:
   see [test/e2e/README.md](test/e2e/README.md).
+
+### Manual testing on an iPhone
+
+There is no automated iOS run. To try a build on an iPhone
+whose vault is local to the phone, the third-party plugin
+[Mobile Hot Reload](https://community.obsidian.md/plugins/mobile-hot-reload)
+serves it from a desktop Obsidian:
+
+1. On the desktop, run `pnpm build`, then `pnpm vault:manual`: it
+   creates a test vault in `.e2e/manual-vault/` whose
+   `.obsidian/plugins/seamsync` is a symbolic link to this
+   repository's `dist/`, and prints its path. Open that folder as a
+   vault in Obsidian. Install Mobile Hot Reload, set it to
+   **Server**, turn off auto-detection and add `seamsync` to the
+   watched plugins.
+2. On the iPhone, install Mobile Hot Reload, set it to **Client**
+   with the URL `http://<desktop-address>:8080`, wait for
+   `seamsync` to arrive and enable it once in
+   **Settings → Community plugins**.
+3. Run `pnpm dev` with the app key set (see Development). Each
+   rebuild of `dist/` reaches the phone within a few seconds and
+   reloads the plugin.
+
+The server has no authentication and no TLS, and the client runs
+whatever plugin code it receives: reach the desktop only over a
+network you trust, such as a VPN.
 
 ## License
 
