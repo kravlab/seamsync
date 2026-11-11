@@ -79,22 +79,47 @@ function button(modal: ConnectModal, text: string): HTMLButtonElement | undefine
 	return [...modal.contentEl.querySelectorAll("button")].find((found) => found.textContent === text);
 }
 
-/** Pastes a code into the login screen of `modal` and presses Continue. */
-function submitCode(modal: ConnectModal): void {
+/** The Login code field of `modal`'s login screen. */
+function codeField(modal: ConnectModal): HTMLInputElement {
 	const input = modal.contentEl.querySelector("input");
 	if (input === null) throw new Error("no code field");
-	input.value = "code";
+	return input;
+}
+
+/** Types `code` into the login screen of `modal`, as the user would. */
+function typeCode(modal: ConnectModal, code: string): void {
+	const input = codeField(modal);
+	input.value = code;
 	input.dispatchEvent(new Event("input"));
+}
+
+/** Pastes a code into the login screen of `modal` and presses Continue. */
+function submitCode(modal: ConnectModal): void {
+	typeCode(modal, "code");
 	button(modal, strings.continue)?.click();
 }
 
-/** The message, detail line and copy button `modal` shows at the top. */
-function shown(modal: ConnectModal): { message: string; detail: string; copy: boolean } {
+/** The message, detail line and copy button `modal`, in the language of `windowStrings`, shows at the top. */
+function shown(modal: ConnectModal, windowStrings = strings): { message: string; detail: string; copy: boolean } {
 	return {
 		message: modal.contentEl.querySelector(".seamsync-message")?.textContent ?? "",
 		detail: modal.contentEl.querySelector(".seamsync-message-detail")?.textContent ?? "",
-		copy: button(modal, strings.copyError) !== undefined,
+		copy: button(modal, windowStrings.copyError) !== undefined,
 	};
+}
+
+/**
+ * The connect window in `language`, on its login screen, with the login it
+ * started and what the code is answered: `outcome`, a login to another
+ * account by default, which stays on the screen.
+ */
+async function openLogin(language = "en", outcome: AuthorizationOutcome = { kind: "otherAccount" }) {
+	const languageStrings = selectStrings(language);
+	const submitted = vi.fn((_code: string) => Promise.resolve(outcome));
+	const startAuthorization = vi.fn(() => Promise.resolve({ authorizeUrl: "https://example.com/authorize", submitCode: submitted }));
+	const modal = newWindow(serviceFor({ startAuthorization }), languageStrings);
+	await vi.waitFor(() => expect(button(modal, languageStrings.continue)).toBeDefined());
+	return { modal, languageStrings, startAuthorization, submitted };
 }
 
 /**
@@ -115,11 +140,17 @@ async function chooseFolder(
 	return modal;
 }
 
-/** The clipboard the window writes to; jsdom has none of its own. */
-let clipboard: { writeText: ReturnType<typeof vi.fn<(text: string) => Promise<void>>> };
+/** The clipboard the window writes to and reads from; jsdom has none of its own. */
+let clipboard: {
+	writeText: ReturnType<typeof vi.fn<(text: string) => Promise<void>>>;
+	readText: ReturnType<typeof vi.fn<() => Promise<string>>>;
+};
 
 beforeEach(() => {
-	clipboard = { writeText: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()) };
+	clipboard = {
+		writeText: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()),
+		readText: vi.fn<() => Promise<string>>(() => Promise.resolve("")),
+	};
 	Object.defineProperty(navigator, "clipboard", { value: clipboard, configurable: true });
 });
 
@@ -263,6 +294,149 @@ describe("the connect window's failures", () => {
 
 		await vi.waitFor(() => expect(Notice.shown).toEqual([strings.errorNotCopied]));
 		expect(consoleError).toHaveBeenCalled();
+	});
+});
+
+describe("the connect window's Paste", () => {
+	it.each([
+		["en", "Paste"],
+		["ru", "Вставить"],
+	])("shows a Paste button, in %s, in the Login code row", async (language, label) => {
+		const { modal, languageStrings } = await openLogin(language);
+
+		const row = codeField(modal).closest(".setting-item");
+		expect([...(row?.querySelectorAll("button") ?? [])].map((found) => found.textContent)).toEqual([label, languageStrings.continue]);
+	});
+
+	it("puts the clipboard's text into the code field, replacing what was typed, and submits nothing", async () => {
+		clipboard.readText.mockResolvedValue("  ab12-cd34\n");
+		const { modal, submitted } = await openLogin();
+		typeCode(modal, "typed");
+
+		button(modal, strings.paste)?.click();
+
+		await vi.waitFor(() => expect(codeField(modal).value).toBe("  ab12-cd34"));
+		expect(document.activeElement).not.toBe(codeField(modal));
+		expect(submitted).not.toHaveBeenCalled();
+	});
+
+	it("submits the pasted code trimmed on Continue, as a typed one", async () => {
+		clipboard.readText.mockResolvedValue("  ab12-cd34\n");
+		const { modal, submitted } = await openLogin();
+
+		button(modal, strings.paste)?.click();
+		await vi.waitFor(() => expect(codeField(modal).value).toBe("  ab12-cd34"));
+		button(modal, strings.continue)?.click();
+
+		await vi.waitFor(() => expect(submitted).toHaveBeenCalledWith("ab12-cd34"));
+	});
+
+	it.each([
+		["en", "Could not read the clipboard. Paste the code into the field."],
+		["ru", "Не удалось прочитать буфер обмена. Вставьте код в поле."],
+	])("tells, in %s, that the clipboard refused, without Copy error, keeping the login", async (language, message) => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const refusal = new DOMException("denied", "NotAllowedError");
+		clipboard.readText.mockRejectedValue(refusal);
+		const { modal, languageStrings, startAuthorization, submitted } = await openLogin(language);
+
+		button(modal, languageStrings.paste)?.click();
+		await vi.waitFor(() => expect(shown(modal, languageStrings)).toEqual({ message, detail: "", copy: false }));
+		typeCode(modal, "ab12");
+		button(modal, languageStrings.continue)?.click();
+
+		await vi.waitFor(() => expect(submitted).toHaveBeenCalledWith("ab12"));
+		expect(startAuthorization).toHaveBeenCalledTimes(1);
+		expect(consoleError).toHaveBeenCalledWith("seamsync: reading the clipboard failed", refusal);
+	});
+
+	it("tells a platform without a clipboard to read as a refused read", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+		const { modal } = await openLogin();
+
+		button(modal, strings.paste)?.click();
+
+		await vi.waitFor(() => expect(shown(modal)).toEqual({ message: strings.clipboardRefused, detail: "", copy: false }));
+	});
+
+	it.each([
+		["en", "The clipboard has no text. Copy the code that Dropbox shows first."],
+		["ru", "В буфере обмена нет текста. Сначала скопируйте код, который показывает Dropbox."],
+	])("tells, in %s, that the clipboard has no text, without Copy error, keeping the login", async (language, message) => {
+		const { modal, languageStrings, startAuthorization, submitted } = await openLogin(language);
+
+		button(modal, languageStrings.paste)?.click();
+		await vi.waitFor(() => expect(shown(modal, languageStrings)).toEqual({ message, detail: "", copy: false }));
+		typeCode(modal, "ab12");
+		button(modal, languageStrings.continue)?.click();
+
+		await vi.waitFor(() => expect(submitted).toHaveBeenCalledWith("ab12"));
+		expect(startAuthorization).toHaveBeenCalledTimes(1);
+	});
+
+	it("takes a clipboard of only spaces and line breaks for one with no text, leaving the field as it was", async () => {
+		clipboard.readText.mockResolvedValue(" \n\t");
+		const { modal } = await openLogin();
+		typeCode(modal, "typed");
+
+		button(modal, strings.paste)?.click();
+
+		await vi.waitFor(() => expect(shown(modal).message).toBe(strings.clipboardEmpty));
+		expect(codeField(modal).value).toBe("typed");
+	});
+
+	it("takes the clipboard message away once a Paste succeeds", async () => {
+		const { modal } = await openLogin();
+		button(modal, strings.paste)?.click();
+		await vi.waitFor(() => expect(shown(modal).message).toBe(strings.clipboardEmpty));
+		clipboard.readText.mockResolvedValue("ab12");
+
+		button(modal, strings.paste)?.click();
+
+		await vi.waitFor(() => expect(codeField(modal).value).toBe("ab12"));
+		expect(shown(modal)).toEqual({ message: "", detail: "", copy: false });
+	});
+
+	it("replaces the clipboard message with the answer to the code sent next", async () => {
+		const { modal } = await openLogin();
+		button(modal, strings.paste)?.click();
+		await vi.waitFor(() => expect(shown(modal).message).toBe(strings.clipboardEmpty));
+
+		submitCode(modal);
+
+		await vi.waitFor(() => expect(shown(modal)).toEqual({ message: strings.otherAccount, detail: "", copy: true }));
+	});
+
+	it("keeps a refused code's message when a Paste succeeds after it", async () => {
+		clipboard.readText.mockResolvedValue("ab12");
+		const { modal } = await openLogin("en", { kind: "codeRejected", detail: "invalid_grant" });
+		submitCode(modal);
+		await vi.waitFor(() => expect(shown(modal).message).toBe(strings.codeRejected));
+
+		button(modal, strings.paste)?.click();
+
+		await vi.waitFor(() => expect(codeField(modal).value).toBe("ab12"));
+		expect(shown(modal).message).toBe(strings.codeRejected);
+	});
+
+	it("drops a clipboard read that settles after the user went on to the next screen", async () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		let refuse: (reason: unknown) => void = () => undefined;
+		clipboard.readText.mockReturnValue(
+			new Promise<string>((_resolve, reject) => {
+				refuse = reject;
+			}),
+		);
+		const { modal } = await openLogin("en", { kind: "authorized", remotes: remotesFor({}) });
+		button(modal, strings.paste)?.click();
+		submitCode(modal);
+		await vi.waitFor(() => expect(button(modal, strings.useFolder)).toBeDefined());
+
+		refuse(new DOMException("denied", "NotAllowedError"));
+		await vi.waitFor(() => expect(consoleError).toHaveBeenCalled());
+
+		expect(shown(modal).message).toBe("");
 	});
 });
 

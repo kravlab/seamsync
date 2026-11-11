@@ -122,6 +122,8 @@ Numbers are those of the manual check list. "Vitest", "Desktop" and
 ## Still checked by hand
 
 - iOS: inspecting Obsidian there needs macOS (Obsidian's developer docs).
+- On an iPhone, connecting to Dropbox by pasting the Login code with
+  the Paste button (#14).
 - Revoking the app on dropbox.com (check 15): only the account owner's
   web session can.
 - The trash honouring Obsidian's "Deleted files" setting (check 11).

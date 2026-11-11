@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, type App } from "obsidian";
+import { Modal, Notice, Setting, TextComponent, type App } from "obsidian";
 import {
 	connectFailureOf,
 	type ConnectionService,
@@ -36,6 +36,11 @@ interface MessageAction {
  * also records. A failed Remote choice also lists the folders again, since
  * it may have left a new folder behind. While a request runs, further
  * clicks are ignored, so a code is never sent twice.
+ *
+ * The login screen's Paste button puts the clipboard's text into the code
+ * field, sending nothing. A clipboard that cannot be read, or holds no
+ * text, is told in the same place but alone: it is no failure to connect,
+ * so it has no detail line or button and the login stays where it was.
  */
 export class ConnectModal extends Modal {
 	private messageEl: HTMLElement | undefined;
@@ -44,6 +49,8 @@ export class ConnectModal extends Modal {
 	/** Under the detail line: the buttons of the failure shown, its own action if it has one, then "Copy error". */
 	private actionsEl: HTMLElement | undefined;
 	private busy = false;
+	/** Whether the message shown tells about the clipboard, which a Paste that succeeds takes away. */
+	private clipboardMessageShown = false;
 	/** The folders listed last, kept when listing them again fails. */
 	private candidates: readonly RemoteCandidate[] = [];
 	/** The device name as edited, kept across redraws of the Remote screen. */
@@ -93,14 +100,19 @@ export class ConnectModal extends Modal {
 					activeWindow.open(pending.authorizeUrl);
 				}),
 		);
-		let code = "";
-		new Setting(contentEl)
-			.setName(strings.loginCode)
-			.addText((text) => text.onChange((value) => (code = value)))
+		const codeRow = new Setting(contentEl).setName(strings.loginCode);
+		const field = new TextComponent(codeRow.controlEl);
+		codeRow
+			.addButton((button) =>
+				button.setButtonText(strings.paste).onClick(() => {
+					void this.paste(field);
+				}),
+			)
 			.addButton((button) =>
 				button.setButtonText(strings.continue).onClick(() => {
 					// Pasted codes often carry a line break or spaces around them.
-					if (code.trim() !== "") void this.submit(pending, code.trim());
+					const code = field.getValue().trim();
+					if (code !== "") void this.submit(pending, code);
 				}),
 			);
 	}
@@ -121,6 +133,32 @@ export class ConnectModal extends Modal {
 				return;
 			case "authorized":
 				return this.showRemotes(outcome.remotes);
+		}
+	}
+
+	/**
+	 * Replaces the content of `field`, the code field, with the clipboard's
+	 * text, without focusing it, so a phone's keyboard stays closed; nothing
+	 * is sent. A clipboard that refuses, or that the platform does not give,
+	 * and one holding no text (only spaces and line breaks count as none)
+	 * are told at the top instead, leaving the field as it was. A read that
+	 * settles once the field is gone, the screen replaced or the window
+	 * closed, is dropped.
+	 */
+	private async paste(field: TextComponent): Promise<void> {
+		let text: string | undefined;
+		try {
+			text = await navigator.clipboard.readText();
+		} catch (error) {
+			console.error("seamsync: reading the clipboard failed", error);
+		}
+		// The read can settle after the user has gone on to another screen, or closed the window.
+		if (!field.inputEl.isConnected) return;
+		if (text === undefined) this.showClipboardMessage(this.strings.clipboardRefused);
+		else if (text.trim() === "") this.showClipboardMessage(this.strings.clipboardEmpty);
+		else {
+			field.setValue(text);
+			if (this.clipboardMessageShown) this.setMessage("");
 		}
 	}
 
@@ -222,20 +260,19 @@ export class ConnectModal extends Modal {
 		this.messageEl = this.contentEl.createEl("p", { cls: "seamsync-message" });
 		this.detailLineEl = this.contentEl.createEl("p", { cls: "seamsync-message-detail" });
 		this.actionsEl = this.contentEl.createDiv();
+		this.clipboardMessageShown = false;
 		if (message) this.showMessage(message);
 	}
 
 	/**
 	 * Shows `message` at the top of the current screen, replacing the one
 	 * shown with its detail line and buttons, with a "Copy error" button:
-	 * every message is a failure to connect, whose text is what a bug report
-	 * needs. `action`, when given, is a button of this message's own, gone
-	 * with it once another message replaces it.
+	 * every message shown this way is a failure to connect, whose text is
+	 * what a bug report needs. `action`, when given, is a button of this
+	 * message's own, gone with it once another message replaces it.
 	 */
 	private showMessage(message: ScreenMessage, action?: MessageAction): void {
-		this.messageEl?.setText(message.text);
-		this.detailLineEl?.setText(message.detailLine ?? "");
-		this.actionsEl?.empty();
+		this.setMessage(message.text, message.detailLine);
 		if (!this.actionsEl) return;
 		const row = new Setting(this.actionsEl);
 		if (action) row.addButton((button) => button.setButtonText(action.label).onClick(action.run));
@@ -251,6 +288,23 @@ export class ConnectModal extends Modal {
 				);
 			}),
 		);
+	}
+
+	/** Shows `text` at the top of the current screen, alone: a clipboard message, not a failure to connect. */
+	private showClipboardMessage(text: string): void {
+		this.setMessage(text, "", true);
+	}
+
+	/**
+	 * Replaces the message at the top of the current screen with `text`,
+	 * `detailLine` under it, and no buttons; `fromClipboard` tells whether
+	 * it is a clipboard message, which a Paste that succeeds takes away.
+	 */
+	private setMessage(text: string, detailLine = "", fromClipboard = false): void {
+		this.messageEl?.setText(text);
+		this.detailLineEl?.setText(detailLine);
+		this.actionsEl?.empty();
+		this.clipboardMessageShown = fromClipboard;
 	}
 
 	/**
