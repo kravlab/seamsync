@@ -9,6 +9,7 @@
 	"scripts": {
 		"build": "tsc --noEmit && node scripts/esbuild.config.mjs production",
 		"dev": "node scripts/esbuild.config.mjs",
+		"vault:manual": "scripts/manual-vault.sh",
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint --config scripts/eslint.config.mjs . --max-warnings 0",
 		"format": "scripts/tracked-files.sh . prettier --write --ignore-unknown",
