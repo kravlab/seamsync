@@ -14,6 +14,7 @@ import { detailLine, errorDetailLine, providerErrorMessage } from "./error-messa
 import { fill } from "./i18n/fill";
 import type { Strings } from "./i18n/strings";
 import { fitForPhone } from "./phone-modal";
+import type { KeyboardBar } from "./keyboard-bar";
 
 /** A button that belongs to one message of the connect window: its text, and what pressing it does. */
 interface MessageAction {
@@ -35,7 +36,8 @@ interface MessageAction {
  * button: every one is a failure to connect, which the connection service
  * also records. A failed Remote choice also lists the folders again, since
  * it may have left a new folder behind. While a request runs, further
- * clicks are ignored, so a code is never sent twice.
+ * clicks are ignored, so a code is never sent twice. While open it holds the
+ * keyboard's bar, switched on before any field can take focus.
  */
 export class ConnectModal extends Modal {
 	private messageEl: HTMLElement | undefined;
@@ -57,6 +59,7 @@ export class ConnectModal extends Modal {
 	 * @param strings the UI strings in the user's language
 	 * @param vaultName the default name of a new Remote
 	 * @param onConnected called once the device is `connected`, a new Connection, or `reconnected` to the account it was connected to
+	 * @param keyboardBar the plugin's owner of iOS's bar above the keyboard, held while this window is open
 	 */
 	constructor(
 		app: App,
@@ -64,6 +67,7 @@ export class ConnectModal extends Modal {
 		private readonly strings: Strings,
 		private readonly vaultName: string,
 		private readonly onConnected: (kind: "connected" | "reconnected") => void,
+		private readonly keyboardBar: KeyboardBar,
 	) {
 		super(app);
 		fitForPhone(this);
@@ -71,10 +75,13 @@ export class ConnectModal extends Modal {
 
 	override onOpen(): void {
 		this.setTitle(this.strings.connectTitle);
+		// Before any field is drawn: switching the bar on while a field already has focus shows it only once that field is focused again.
+		this.keyboardBar.hold(this);
 		void this.showLogin();
 	}
 
 	override onClose(): void {
+		this.keyboardBar.release(this);
 		this.contentEl.empty();
 	}
 

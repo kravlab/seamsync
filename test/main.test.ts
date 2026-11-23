@@ -5,7 +5,7 @@ import SeamsyncPlugin from "../src/main";
 import type { HttpRequest } from "../src/providers/dropbox/http";
 import { selectStrings } from "../src/ui/i18n/strings";
 import { FakeDropbox, json, type FakeDropboxAccount } from "./fakes/fake-dropbox";
-import { Notice, answerRequestsWith, type Plugin as FakePlugin } from "./fakes/obsidian";
+import { Notice, Platform, answerRequestsWith, type Plugin as FakePlugin } from "./fakes/obsidian";
 import { FakeApp } from "./fakes/obsidian-app";
 import {
 	PLUGIN_WAIT,
@@ -13,6 +13,7 @@ import {
 	buttonIn,
 	connectThroughSettings,
 	logIn as logInAs,
+	openConnectWindow,
 	pluginManifest,
 	runCommand,
 } from "./support/plugin-run";
@@ -42,6 +43,8 @@ afterEach(async () => {
 	await requests.settle();
 	document.body.replaceChildren();
 	vi.restoreAllMocks();
+	// The native bar belongs to the test that installed it.
+	Reflect.deleteProperty(window, "Capacitor");
 });
 
 /** Makes `requestUrl` reach `dropbox`, which takes the plugin's requests as the Dropbox provider sends them. */
@@ -102,6 +105,38 @@ async function startedWithNote() {
 	/** What the status bar item says now. */
 	const status = (): string => plugin.statusBarItems[0]?.textContent ?? "";
 	return { dropbox, account, plugin, status };
+}
+
+/** Makes the platform the one of Obsidian's iOS app. */
+function onIos(): void {
+	Object.assign(Platform, { isIosApp: true, isMobile: true, isPhone: true, isDesktop: false });
+}
+
+/** Makes the platform the one of Obsidian's Android app. */
+function onAndroid(): void {
+	Object.assign(Platform, { isAndroidApp: true, isMobile: true, isPhone: true, isDesktop: false });
+}
+
+/**
+ * Installs a native Keyboard plugin on the window, as Obsidian mobile has
+ * one, and returns what it was asked to do: the `isVisible` of each call
+ * to `setAccessoryBarVisible`, in order.
+ */
+function installNativeKeyboard(): boolean[] {
+	const calls: boolean[] = [];
+	Object.assign(window, {
+		Capacitor: {
+			Plugins: {
+				Keyboard: {
+					setAccessoryBarVisible: ({ isVisible }: { isVisible: boolean }): Promise<void> => {
+						calls.push(isVisible);
+						return Promise.resolve();
+					},
+				},
+			},
+		},
+	});
+	return calls;
 }
 
 describe("the plugin unloaded before Obsidian's layout is ready", () => {
@@ -166,5 +201,66 @@ describe("the plugin after connecting", () => {
 		// The vault was synced before, so logging in again opens no First sync preview.
 		expect(Notice.shown.filter((message) => message === strings.noticeReconnectNeeded)).toHaveLength(1);
 		expect(() => button(strings.firstSyncStart)).toThrow(/no button/);
+	});
+});
+
+describe("the keyboard's bar", () => {
+	it("is turned on, then off, on iOS when connecting closes the connect window", async () => {
+		onIos();
+		const bar = installNativeKeyboard();
+		const { dropbox, account, plugin } = await startedWithNote();
+
+		await connect(plugin, dropbox, account);
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned off on iOS when the plugin unloads while the connect window is open", async () => {
+		onIos();
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		plugin.unload();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is never touched on desktop when the connect window opens", async () => {
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is never touched on Android when the connect window opens", async () => {
+		onAndroid();
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is skipped on iOS without the native Keyboard plugin: the login screen still shows and the failure is logged", async () => {
+		onIos();
+		const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+
+		await vi.waitFor(() => button(strings.continue), PLUGIN_WAIT);
+		await vi.waitFor(() =>
+			expect(logged).toHaveBeenCalledWith(
+				"seamsync: switching the keyboard's bar failed",
+				new Error("seamsync: there is no Capacitor global on the window"),
+			),
+		);
 	});
 });

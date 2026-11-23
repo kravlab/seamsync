@@ -5,6 +5,7 @@ import { createConnectionEpoch } from "./engine/connection-epoch";
 import { createSyncEngine } from "./engine/engine";
 import type { ConfigurationConflictStore, Scheduler } from "./engine/ports";
 import { ObsidianActivityStore } from "./obsidian/activity-store";
+import { capacitorAccessoryBarSetter } from "./obsidian/capacitor-keyboard-bar";
 import { ObsidianConfigurationCategoriesStore } from "./obsidian/configuration-categories-store";
 import { ObsidianConfigurationConflicts } from "./obsidian/configuration-conflict-store";
 import { ObsidianConnectionErrorLog } from "./obsidian/connection-error-log";
@@ -28,6 +29,7 @@ import { ConnectModal } from "./ui/connect-modal";
 import { defaultDeviceName } from "./ui/device-name";
 import { fill } from "./ui/i18n/fill";
 import { selectStrings, type Strings } from "./ui/i18n/strings";
+import { createKeyboardBar } from "./ui/keyboard-bar";
 import { RestoreConfigurationModal } from "./ui/restore-configuration-modal";
 import { SeamsyncSettingTab } from "./ui/settings-tab";
 import { StatusIndicator } from "./ui/status-indicator";
@@ -134,19 +136,32 @@ export default class SeamsyncPlugin extends Plugin {
 		const fullReconcile = (): void => {
 			engine.reconcile().catch((error: unknown) => console.error("seamsync: reconcile failed", error));
 		};
+		// One owner for the whole plugin, so windows opened one after another never fight over the bar; hidden again on unload.
+		// Only iOS has the bar. The global `window` is used on purpose, not `activeWindow`: Obsidian mobile's Capacitor global lives on the main window, while `activeWindow` follows focus.
+		const keyboardBar = createKeyboardBar({
+			setVisible: Platform.isIosApp ? capacitorAccessoryBarSetter(window) : () => Promise.resolve(),
+		});
+		this.register(() => keyboardBar.dispose());
 		const openConnect = (): void => {
-			new ConnectModal(this.app, connection, strings, this.app.vault.getName(), (kind) => {
-				void settingTab.reload();
-				// A login again ends a pause for Reconnect needed: syncing starts at once.
-				if (kind === "reconnected") {
-					syncNow();
-					return;
-				}
-				// A new Connection shows the onboarding first, then syncs; a plugin unloaded meanwhile syncs nothing.
-				void indicator.showOnboarding().then((loaded) => {
-					if (loaded) syncNow();
-				});
-			}).open();
+			new ConnectModal(
+				this.app,
+				connection,
+				strings,
+				this.app.vault.getName(),
+				(kind) => {
+					void settingTab.reload();
+					// A login again ends a pause for Reconnect needed: syncing starts at once.
+					if (kind === "reconnected") {
+						syncNow();
+						return;
+					}
+					// A new Connection shows the onboarding first, then syncs; a plugin unloaded meanwhile syncs nothing.
+					void indicator.showOnboarding().then((loaded) => {
+						if (loaded) syncNow();
+					});
+				},
+				keyboardBar,
+			).open();
 		};
 		// One Sync window at a time, closed with the plugin so its buttons never reach an unloaded engine.
 		let syncWindow: SyncWindow | undefined;
