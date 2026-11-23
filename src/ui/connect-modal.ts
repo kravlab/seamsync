@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, type App } from "obsidian";
+import { Notice, Setting, type App } from "obsidian";
 import {
 	connectFailureOf,
 	type ConnectionService,
@@ -13,8 +13,9 @@ import { copiedError, type ScreenMessage } from "./connect-error-text";
 import { detailLine, errorDetailLine, providerErrorMessage } from "./error-message";
 import { fill } from "./i18n/fill";
 import type { Strings } from "./i18n/strings";
-import { fitForPhone } from "./phone-modal";
 import type { KeyboardBar } from "./keyboard-bar";
+import { KeyboardBarModal } from "./keyboard-bar-modal";
+import { fitForPhone } from "./phone-modal";
 
 /** A button that belongs to one message of the connect window: its text, and what pressing it does. */
 interface MessageAction {
@@ -36,10 +37,10 @@ interface MessageAction {
  * button: every one is a failure to connect, which the connection service
  * also records. A failed Remote choice also lists the folders again, since
  * it may have left a new folder behind. While a request runs, further
- * clicks are ignored, so a code is never sent twice. While open it holds the
- * keyboard's bar, switched on before any field can take focus.
+ * clicks are ignored, so a code is never sent twice. It holds the keyboard's
+ * bar while open (see KeyboardBarModal).
  */
-export class ConnectModal extends Modal {
+export class ConnectModal extends KeyboardBarModal {
 	private messageEl: HTMLElement | undefined;
 	/** Under the message: what went wrong, when there is something to tell. */
 	private detailLineEl: HTMLElement | undefined;
@@ -67,21 +68,20 @@ export class ConnectModal extends Modal {
 		private readonly strings: Strings,
 		private readonly vaultName: string,
 		private readonly onConnected: (kind: "connected" | "reconnected") => void,
-		private readonly keyboardBar: KeyboardBar,
+		keyboardBar: KeyboardBar,
 	) {
-		super(app);
+		super(app, keyboardBar);
 		fitForPhone(this);
 	}
 
 	override onOpen(): void {
+		super.onOpen();
 		this.setTitle(this.strings.connectTitle);
-		// Before any field is drawn: switching the bar on while a field already has focus shows it only once that field is focused again.
-		this.keyboardBar.hold(this);
 		void this.showLogin();
 	}
 
 	override onClose(): void {
-		this.keyboardBar.release(this);
+		super.onClose();
 		this.contentEl.empty();
 	}
 

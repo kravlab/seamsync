@@ -29,7 +29,7 @@ import { ConnectModal } from "./ui/connect-modal";
 import { defaultDeviceName } from "./ui/device-name";
 import { fill } from "./ui/i18n/fill";
 import { selectStrings, type Strings } from "./ui/i18n/strings";
-import { createKeyboardBar } from "./ui/keyboard-bar";
+import { createKeyboardBar, type KeyboardBar } from "./ui/keyboard-bar";
 import { RestoreConfigurationModal } from "./ui/restore-configuration-modal";
 import { SeamsyncSettingTab } from "./ui/settings-tab";
 import { StatusIndicator } from "./ui/status-indicator";
@@ -222,7 +222,7 @@ export default class SeamsyncPlugin extends Plugin {
 				);
 			},
 		});
-		this.addConflictResolution(strings);
+		this.addConflictResolution(strings, keyboardBar);
 		// `onLayoutReady` is not tied to the plugin's lifecycle: a plugin unloaded before the layout is ready starts nothing.
 		let unloaded = false;
 		this.register(() => {
@@ -280,13 +280,16 @@ export default class SeamsyncPlugin extends Plugin {
 	 * Adds the ways to resolve Conflict blocks (spec, "Architecture and
 	 * modules"): the action rows in the editor, the panels in reading view,
 	 * and the "Next conflict" and "Previous conflict" commands.
+	 *
+	 * @param strings the UI strings in the user's language
+	 * @param keyboardBar the owner of iOS's bar above the keyboard, held by the Edit… window while open
 	 */
-	private addConflictResolution(strings: Strings): void {
+	private addConflictResolution(strings: Strings, keyboardBar: KeyboardBar): void {
 		this.registerEditorExtension(
 			conflictDecorations({
 				strings,
 				isPhone: Platform.isPhone,
-				editBlock: (block, apply) => new ConflictEditModal(this.app, strings, block, apply).open(),
+				editBlock: (block, apply) => new ConflictEditModal(this.app, strings, block, apply, keyboardBar).open(),
 			}),
 		);
 		this.registerMarkdownPostProcessor(conflictReadingView(this.app, strings));

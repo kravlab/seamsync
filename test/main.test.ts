@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import type { Extension } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
 import SeamsyncPlugin from "../src/main";
 import type { HttpRequest } from "../src/providers/dropbox/http";
 import { selectStrings } from "../src/ui/i18n/strings";
@@ -139,6 +141,19 @@ function installNativeKeyboard(): boolean[] {
 	return calls;
 }
 
+/**
+ * Presses the Edit… button of the Conflict block in a note's editor, which
+ * runs with the extensions `plugin` registered, so that the Edit… dialog
+ * opens in the document; the editor is destroyed after the test. Needs the
+ * platform set before `plugin` starts, since the plugin reads it then.
+ */
+function pressEditOfConflictBlock(plugin: FakePlugin): void {
+	const text = "note\n<<<<<<< Phone\nmine\n=======\ntheirs\n>>>>>>> Remote\n";
+	const view = new EditorView({ doc: text, extensions: plugin.editorExtensions as Extension[], parent: document.body });
+	onTestFinished(() => view.destroy());
+	buttonIn(view.dom, strings.conflictEdit).click();
+}
+
 describe("the plugin unloaded before Obsidian's layout is ready", () => {
 	it("starts no engine and listens for nothing once the layout gets ready", async () => {
 		const app = new FakeApp("My vault");
@@ -213,6 +228,27 @@ describe("the keyboard's bar", () => {
 		await connect(plugin, dropbox, account);
 
 		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned on, then off, on iOS when the Edit… window of a Conflict block opens and is cancelled", async () => {
+		onIos();
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+
+		pressEditOfConflictBlock(plugin);
+		button(strings.cancel).click();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is never touched on desktop when the Edit… window of a Conflict block opens and is cancelled", async () => {
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+
+		pressEditOfConflictBlock(plugin);
+		button(strings.cancel).click();
+
+		expect(bar).toEqual([]);
 	});
 
 	it("is turned off on iOS when the plugin unloads while the connect window is open", async () => {
