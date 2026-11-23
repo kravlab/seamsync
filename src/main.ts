@@ -257,6 +257,7 @@ export default class SeamsyncPlugin extends Plugin {
 			schedule,
 			deletionGuard,
 			categories,
+			keyboardBar,
 		);
 		this.addSettingTab(settingTab);
 		// Each completed sync may bring shared settings another device changed; the tab shows them.

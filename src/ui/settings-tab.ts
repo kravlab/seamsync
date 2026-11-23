@@ -14,6 +14,7 @@ import type { ObsidianScheduleStore } from "../obsidian/schedule-store";
 import { ConfirmModal } from "./confirm-modal";
 import { fill } from "./i18n/fill";
 import type { Strings } from "./i18n/strings";
+import type { KeyboardBar } from "./keyboard-bar";
 import { namePolicyText } from "./shared-settings-text";
 
 /** A number setting of the tab: what its row says and how a typed value is kept. */
@@ -90,7 +91,9 @@ interface Row {
  * the other devices, each to forget. It renders declaratively on
  * Obsidian 1.13 and later (`getSettingDefinitions`, also indexed for
  * settings search) and through `display` before that; both draw the same
- * rows.
+ * rows. While shown, it holds iOS's keyboard bar on both paths (`display`,
+ * or each row's render callback), so the bar is on before a field can take
+ * focus, and gives it up in `hide`.
  *
  * The Connection and the shared settings are read asynchronously, so the
  * tab shows the state it read last; `reload` reads them again and redraws.
@@ -135,6 +138,7 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 		private readonly schedule: ObsidianScheduleStore,
 		private readonly deletionGuard: ObsidianDeletionGuardStore,
 		private readonly categories: ObsidianConfigurationCategoriesStore,
+		private readonly keyboardBar: KeyboardBar,
 	) {
 		super(app, plugin);
 	}
@@ -180,7 +184,7 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 		const custom = (field: CustomField) => ({
 			name: field.name,
 			desc: field.description,
-			render: (setting: Setting) => drawCustomField(setting, field),
+			render: this.holdingKeyboardBar((setting) => drawCustomField(setting, field)),
 		});
 		return [
 			// A declarative action row runs when clicked, so it is named by what it does.
@@ -189,7 +193,7 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 			...this.numberFields().map((field) => ({
 				name: field.name,
 				desc: field.description,
-				render: (setting: Setting) => drawNumberField(setting, field),
+				render: this.holdingKeyboardBar((setting) => drawNumberField(setting, field)),
 			})),
 			{
 				type: "group",
@@ -197,7 +201,7 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 				items: this.categoryFields().map((field) => ({
 					name: field.name,
 					desc: field.description,
-					render: (setting: Setting) => drawToggleField(setting, field),
+					render: this.holdingKeyboardBar((setting) => drawToggleField(setting, field)),
 				})),
 			},
 			...(this.device === null
@@ -210,13 +214,39 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 	}
 
 	/**
+	 * `draw` as a row's render callback that holds the keyboard's bar first,
+	 * before any field is drawn (see `display`). Holding is not left to
+	 * `getSettingDefinitions`: Obsidian also calls it to index the tab for
+	 * search, while the tab is not shown. Holding again on each refresh
+	 * changes nothing.
+	 */
+	private holdingKeyboardBar(draw: (setting: Setting) => void): (setting: Setting) => void {
+		return (setting) => {
+			this.keyboardBar.hold(this);
+			draw(setting);
+		};
+	}
+
+	/**
 	 * Draws the tab when it opens, on Obsidian before 1.13, then reads it
 	 * again, so it shows what syncs brought since. Obsidian 1.13 and later
 	 * do not call it; there the tab follows each sync (`refreshShared`).
 	 */
 	override display(): void {
+		// Before any field is drawn, as in KeyboardBarModal.onOpen.
+		this.keyboardBar.hold(this);
 		this.draw();
 		this.reload().catch((error: unknown) => console.error("seamsync: reading the settings failed", error));
+	}
+
+	/**
+	 * Gives the keyboard's bar up. Obsidian calls it when another tab opens,
+	 * when the settings window closes and when the tab is removed as the
+	 * plugin unloads.
+	 */
+	override hide(): void {
+		this.keyboardBar.release(this);
+		super.hide();
 	}
 
 	/** Draws the rows into the tab, as Obsidian before 1.13 shows them. */

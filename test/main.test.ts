@@ -230,6 +230,38 @@ describe("the keyboard's bar", () => {
 		expect(bar).toEqual([true, false]);
 	});
 
+	it("stays on while the connect window opened from the shown settings tab closes, until the tab is hidden", async () => {
+		onIos();
+		const bar = installNativeKeyboard();
+		const { dropbox, account, plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+		// The settings window shows the tab: attached to the document, as it is when the user sees it.
+		document.body.appendChild(tab.containerEl);
+		tab.open();
+		await vi.waitFor(() => button(strings.connect), PLUGIN_WAIT);
+
+		await connect(plugin, dropbox, account);
+
+		// The tab still holds the bar, which the connect window's closing must not turn off.
+		expect(bar).toEqual([true]);
+
+		tab.hide();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned off on iOS when the plugin unloads while its settings tab is shown", async () => {
+		onIos();
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+		plugin.settingTabs[0]?.open();
+
+		plugin.unload();
+
+		expect(bar).toEqual([true, false]);
+	});
+
 	it("is turned on, then off, on iOS when the Edit… window of a Conflict block opens and is cancelled", async () => {
 		onIos();
 		const bar = installNativeKeyboard();
@@ -269,6 +301,20 @@ describe("the keyboard's bar", () => {
 
 		openConnectWindow(document.body, plugin);
 		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is never touched on desktop when the settings tab is shown", async () => {
+		const bar = installNativeKeyboard();
+		const { plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+		document.body.appendChild(tab.containerEl);
+
+		tab.open();
+		await vi.waitFor(() => button(strings.connect), PLUGIN_WAIT);
+		tab.hide();
 
 		expect(bar).toEqual([]);
 	});

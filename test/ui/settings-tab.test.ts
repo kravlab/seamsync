@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionService } from "../../src/engine/connection";
 import { DEFAULT_REMOTE_SETTINGS, type DeviceRecord, type RemoteSettings } from "../../src/engine/remote-metadata";
 import { ObsidianConfigurationCategoriesStore } from "../../src/obsidian/configuration-categories-store";
@@ -8,8 +8,9 @@ import { ObsidianRequestLimitStore } from "../../src/obsidian/request-limit-stor
 import { ObsidianScheduleStore } from "../../src/obsidian/schedule-store";
 import { fill } from "../../src/ui/i18n/fill";
 import { selectStrings } from "../../src/ui/i18n/strings";
+import { createKeyboardBar, type KeyboardBar } from "../../src/ui/keyboard-bar";
 import { SeamsyncSettingTab } from "../../src/ui/settings-tab";
-import { Notice, Plugin } from "../fakes/obsidian";
+import { Notice, Plugin, openSettingTab, playApiVersion } from "../fakes/obsidian";
 import { FakeApp } from "../fakes/obsidian-app";
 
 const strings = selectStrings("en");
@@ -21,14 +22,17 @@ afterEach(() => {
 
 /**
  * The settings tab of a connected device named "Laptop", that knows the
- * default shared settings, drawn into the document; the connection service
- * answers as `overrides` say, Apply calls `changeSettings` and Help `openHelp`.
+ * default shared settings, not yet drawn nor read; the connection service
+ * answers as `overrides` say, Apply calls `changeSettings` and Help
+ * `openHelp`, and the tab holds `keyboardBar`, by default one whose switch
+ * does nothing.
  */
-async function connectedTab(
+function builtTab(
 	overrides: Partial<ConnectionService> = {},
 	changeSettings: (base: RemoteSettings, wanted: RemoteSettings) => Promise<void> = () => Promise.resolve(),
 	openHelp: () => void = () => undefined,
-): Promise<SeamsyncSettingTab> {
+	keyboardBar: KeyboardBar = createKeyboardBar({ setVisible: () => Promise.resolve() }),
+): SeamsyncSettingTab {
 	const app = new FakeApp();
 	const service: ConnectionService = {
 		showStatus: () => Promise.resolve(),
@@ -41,7 +45,7 @@ async function connectedTab(
 		sharedSettings: () => Promise.resolve(DEFAULT_REMOTE_SETTINGS),
 		...overrides,
 	};
-	const tab = new SeamsyncSettingTab(
+	return new SeamsyncSettingTab(
 		app as never,
 		new Plugin(app, { id: "seamsync", version: "0.1.0" }) as never,
 		service,
@@ -54,7 +58,18 @@ async function connectedTab(
 		new ObsidianScheduleStore(app as never),
 		new ObsidianDeletionGuardStore(app as never),
 		new ObsidianConfigurationCategoriesStore(app as never),
+		keyboardBar,
 	);
+}
+
+/** The settings tab of `builtTab`, read and drawn into the document. */
+async function connectedTab(
+	overrides: Partial<ConnectionService> = {},
+	changeSettings: (base: RemoteSettings, wanted: RemoteSettings) => Promise<void> = () => Promise.resolve(),
+	openHelp: () => void = () => undefined,
+	keyboardBar?: KeyboardBar,
+): Promise<SeamsyncSettingTab> {
+	const tab = builtTab(overrides, changeSettings, openHelp, keyboardBar);
 	await tab.reload();
 	document.body.appendChild(tab.containerEl);
 	return tab;
@@ -264,5 +279,84 @@ describe("the settings tab's help", () => {
 		press(strings.openHelp);
 
 		expect(openHelp).toHaveBeenCalledOnce();
+	});
+});
+
+/** One switch of the native keyboard bar, with how many text fields the tab had drawn when it was asked. */
+interface BarSwitch {
+	readonly isVisible: boolean;
+	readonly fields: number;
+}
+
+/**
+ * A settings tab holding a recording keyboard bar, and the switches that
+ * reach its native bar, in order. The tab does not exist yet when the bar is
+ * made, so the switches count its fields through `built`, set once it is.
+ */
+function tabWithRecordingBar(overrides: Partial<ConnectionService> = {}): {
+	readonly tab: SeamsyncSettingTab;
+	readonly switches: BarSwitch[];
+} {
+	const switches: BarSwitch[] = [];
+	let built: SeamsyncSettingTab | undefined;
+	const bar = createKeyboardBar({
+		setVisible: (isVisible) => {
+			switches.push({ isVisible, fields: built?.containerEl.querySelectorAll("input, textarea").length ?? 0 });
+			return Promise.resolve();
+		},
+	});
+	const tab = builtTab(overrides, undefined, undefined, bar);
+	built = tab;
+	return { tab, switches };
+}
+
+/** Lets what a shown tab started asynchronously (the read `display` ends with) finish, so nothing leaks into the next test. */
+function settle(): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+describe.each(["1.12.7", "1.13.0"])("the settings tab's keyboard bar on Obsidian %s", (version) => {
+	beforeEach(() => playApiVersion(version));
+
+	it("is switched on when the tab is shown, before any of its fields is drawn", async () => {
+		const { tab, switches } = tabWithRecordingBar();
+
+		openSettingTab(tab);
+		await settle();
+
+		expect(switches[0]).toEqual({ isVisible: true, fields: 0 });
+	});
+
+	it("is switched off when the tab is hidden", async () => {
+		const { tab, switches } = tabWithRecordingBar();
+		openSettingTab(tab);
+		await settle();
+
+		tab.hide();
+
+		expect(switches.map((entry) => entry.isVisible)).toEqual([true, false]);
+	});
+
+	it("is not switched on again when the shown tab is drawn again", async () => {
+		let reads = 0;
+		const differentEachTime = (): Promise<RemoteSettings> =>
+			Promise.resolve({ ...DEFAULT_REMOTE_SETTINGS, ignoreList: [String(reads++)] });
+		const { tab, switches } = tabWithRecordingBar({ sharedSettings: differentEachTime });
+		openSettingTab(tab);
+		await settle();
+
+		await tab.reload();
+		await tab.refreshShared();
+		tab.hide();
+
+		expect(switches.map((entry) => entry.isVisible)).toEqual([true, false]);
+	});
+
+	it("is left alone when the tab is drawn while it is not shown", async () => {
+		const { tab, switches } = tabWithRecordingBar();
+
+		await tab.reload();
+
+		expect(switches).toEqual([]);
 	});
 });
