@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, type App } from "obsidian";
+import { Notice, Setting, type App } from "obsidian";
 import {
 	connectFailureOf,
 	type ConnectionService,
@@ -13,6 +13,8 @@ import { copiedError, type ScreenMessage } from "./connect-error-text";
 import { detailLine, errorDetailLine, providerErrorMessage } from "./error-message";
 import { fill } from "./i18n/fill";
 import type { Strings } from "./i18n/strings";
+import type { KeyboardBar } from "./keyboard-bar";
+import { KeyboardBarModal } from "./keyboard-bar-modal";
 import { fitForPhone } from "./phone-modal";
 
 /** A button that belongs to one message of the connect window: its text, and what pressing it does. */
@@ -35,9 +37,10 @@ interface MessageAction {
  * button: every one is a failure to connect, which the connection service
  * also records. A failed Remote choice also lists the folders again, since
  * it may have left a new folder behind. While a request runs, further
- * clicks are ignored, so a code is never sent twice.
+ * clicks are ignored, so a code is never sent twice. It holds the keyboard's
+ * bar while open (see KeyboardBarModal).
  */
-export class ConnectModal extends Modal {
+export class ConnectModal extends KeyboardBarModal {
 	private messageEl: HTMLElement | undefined;
 	/** Under the message: what went wrong, when there is something to tell. */
 	private detailLineEl: HTMLElement | undefined;
@@ -57,6 +60,7 @@ export class ConnectModal extends Modal {
 	 * @param strings the UI strings in the user's language
 	 * @param vaultName the default name of a new Remote
 	 * @param onConnected called once the device is `connected`, a new Connection, or `reconnected` to the account it was connected to
+	 * @param keyboardBar the plugin's owner of iOS's bar above the keyboard, held while this window is open
 	 */
 	constructor(
 		app: App,
@@ -64,18 +68,16 @@ export class ConnectModal extends Modal {
 		private readonly strings: Strings,
 		private readonly vaultName: string,
 		private readonly onConnected: (kind: "connected" | "reconnected") => void,
+		keyboardBar: KeyboardBar,
 	) {
-		super(app);
+		super(app, keyboardBar);
 		fitForPhone(this);
 	}
 
-	override onOpen(): void {
+	/** Draws the window's title and the login screen. */
+	protected override draw(): void {
 		this.setTitle(this.strings.connectTitle);
 		void this.showLogin();
-	}
-
-	override onClose(): void {
-		this.contentEl.empty();
 	}
 
 	/** Shows the login screen for a new login, with `message` above it if given. */

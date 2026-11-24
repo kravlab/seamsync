@@ -1,7 +1,9 @@
-import { Modal, Notice, Setting, TextAreaComponent, type App } from "obsidian";
+import { Notice, Setting, TextAreaComponent, type App } from "obsidian";
 import type { ConflictBlock } from "../engine/conflict-blocks";
 import { shownSides } from "./conflict-sides";
 import type { Strings } from "./i18n/strings";
+import type { KeyboardBar } from "./keyboard-bar";
+import { KeyboardBarModal } from "./keyboard-bar-modal";
 import { fitForPhone } from "./phone-modal";
 
 /**
@@ -10,27 +12,31 @@ import { fitForPhone } from "./phone-modal";
  * hand. Save replaces the whole block with the field's text; Cancel, or
  * closing the dialog, changes nothing. If the block changed meanwhile,
  * e.g. by a sync, Save changes nothing either and the dialog stays open
- * with a notice, so the text typed into it is not lost.
+ * with a notice, so the text typed into it is not lost. It holds the keyboard's
+ * bar while open (see KeyboardBarModal).
  */
-export class ConflictEditModal extends Modal {
+export class ConflictEditModal extends KeyboardBarModal {
 	/**
 	 * @param app the Obsidian app
 	 * @param strings the UI strings in the user's language
 	 * @param block the block being resolved
 	 * @param onSave replaces the block with the text the user saved;
 	 *   false when the block is no longer there as it was shown
+	 * @param keyboardBar the plugin's owner of iOS's bar above the keyboard, held while this window is open
 	 */
 	constructor(
 		app: App,
 		private readonly strings: Strings,
 		private readonly block: ConflictBlock,
 		private readonly onSave: (text: string) => boolean,
+		keyboardBar: KeyboardBar,
 	) {
-		super(app);
+		super(app, keyboardBar);
 		fitForPhone(this);
 	}
 
-	override onOpen(): void {
+	/** Draws the window's title, both sides of the block and the text field with Cancel and Save. */
+	protected override draw(): void {
 		const { contentEl, strings, block } = this;
 		this.setTitle(strings.conflictEditTitle);
 		this.modalEl.addClass("seamsync-conflict-edit");
@@ -54,9 +60,5 @@ export class ConflictEditModal extends Modal {
 						else new Notice(strings.conflictChanged);
 					}),
 			);
-	}
-
-	override onClose(): void {
-		this.contentEl.empty();
 	}
 }

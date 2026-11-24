@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import type { Extension } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
 import SeamsyncPlugin from "../src/main";
 import type { HttpRequest } from "../src/providers/dropbox/http";
 import { selectStrings } from "../src/ui/i18n/strings";
+import { installNativeKeyboard, removeCapacitor } from "./fakes/fake-capacitor";
 import { FakeDropbox, json, type FakeDropboxAccount } from "./fakes/fake-dropbox";
-import { Notice, answerRequestsWith, type Plugin as FakePlugin } from "./fakes/obsidian";
+import { Modal, Notice, Platform, answerRequestsWith, playApiVersion, type Plugin as FakePlugin } from "./fakes/obsidian";
 import { FakeApp } from "./fakes/obsidian-app";
 import {
 	PLUGIN_WAIT,
@@ -13,6 +16,7 @@ import {
 	buttonIn,
 	connectThroughSettings,
 	logIn as logInAs,
+	openConnectWindow,
 	pluginManifest,
 	runCommand,
 } from "./support/plugin-run";
@@ -42,6 +46,8 @@ afterEach(async () => {
 	await requests.settle();
 	document.body.replaceChildren();
 	vi.restoreAllMocks();
+	// The native bar belongs to the test that installed it.
+	removeCapacitor();
 });
 
 /** Makes `requestUrl` reach `dropbox`, which takes the plugin's requests as the Dropbox provider sends them. */
@@ -102,6 +108,43 @@ async function startedWithNote() {
 	/** What the status bar item says now. */
 	const status = (): string => plugin.statusBarItems[0]?.textContent ?? "";
 	return { dropbox, account, plugin, status };
+}
+
+/** Makes the platform the one of Obsidian's iOS app. */
+function onIos(): void {
+	Object.assign(Platform, { isIosApp: true, isMobile: true, isPhone: true, isDesktop: false });
+}
+
+/** Makes the platform the one of Obsidian's Android app. */
+function onAndroid(): void {
+	Object.assign(Platform, { isAndroidApp: true, isMobile: true, isPhone: true, isDesktop: false });
+}
+
+/**
+ * Installs a native Keyboard plugin on the window, as Obsidian mobile has
+ * one, and returns what it was asked to do: the `isVisible` of each call
+ * to `setAccessoryBarVisible`, in order.
+ */
+function installRecordingKeyboard(): boolean[] {
+	const calls: boolean[] = [];
+	installNativeKeyboard(({ isVisible }: { isVisible: boolean }): Promise<void> => {
+		calls.push(isVisible);
+		return Promise.resolve();
+	});
+	return calls;
+}
+
+/**
+ * Presses the Edit… button of the Conflict block in a note's editor, which
+ * runs with the extensions `plugin` registered, so that the Edit… dialog
+ * opens in the document; the editor is destroyed after the test. Needs the
+ * platform set before `plugin` starts, since the plugin reads it then.
+ */
+function pressEditOfConflictBlock(plugin: FakePlugin): void {
+	const text = "note\n<<<<<<< Phone\nmine\n=======\ntheirs\n>>>>>>> Remote\n";
+	const view = new EditorView({ doc: text, extensions: plugin.editorExtensions as Extension[], parent: document.body });
+	onTestFinished(() => view.destroy());
+	buttonIn(view.dom, strings.conflictEdit).click();
 }
 
 describe("the plugin unloaded before Obsidian's layout is ready", () => {
@@ -166,5 +209,164 @@ describe("the plugin after connecting", () => {
 		// The vault was synced before, so logging in again opens no First sync preview.
 		expect(Notice.shown.filter((message) => message === strings.noticeReconnectNeeded)).toHaveLength(1);
 		expect(() => button(strings.firstSyncStart)).toThrow(/no button/);
+	});
+});
+
+describe("the keyboard's bar", () => {
+	it("is turned on, then off, on iOS when connecting closes the connect window", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { dropbox, account, plugin } = await startedWithNote();
+
+		await connect(plugin, dropbox, account);
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("stays on while the connect window opened from the shown settings tab closes, until the tab is hidden", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { dropbox, account, plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+		// The settings window shows the tab: attached to the document, as it is when the user sees it.
+		document.body.appendChild(tab.containerEl);
+		tab.open();
+		await vi.waitFor(() => button(strings.connect), PLUGIN_WAIT);
+
+		await connect(plugin, dropbox, account);
+
+		// The tab still holds the bar, which the connect window's closing must not turn off.
+		expect(bar).toEqual([true]);
+
+		tab.hide();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned off on iOS when the plugin unloads while its settings tab is shown", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+		plugin.settingTabs[0]?.open();
+
+		plugin.unload();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned on, then off, on iOS when the settings tab is shown and hidden on Obsidian 1.13", async () => {
+		onIos();
+		playApiVersion("1.13.0");
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+
+		tab.open();
+		expect(bar).toEqual([true]);
+		tab.hide();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is turned on, then off, on iOS when the Edit… window of a Conflict block opens and is cancelled", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		pressEditOfConflictBlock(plugin);
+		button(strings.cancel).click();
+
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is never touched on desktop when the Edit… window of a Conflict block opens and is cancelled", async () => {
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		pressEditOfConflictBlock(plugin);
+		button(strings.cancel).click();
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is turned off on iOS when the plugin unloads while the connect window is open, and closing the window afterwards sends nothing more", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+		const opening = vi.spyOn(Modal.prototype, "open");
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		plugin.unload();
+		expect(bar).toEqual([true, false]);
+
+		expect(opening).toHaveBeenCalledTimes(1);
+		const [modal] = opening.mock.contexts;
+		if (!(modal instanceof Modal)) throw new Error("no window was opened");
+		modal.close();
+		expect(bar).toEqual([true, false]);
+	});
+
+	it("is never touched on iOS when the plugin loads and unloads with nothing open", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		plugin.unload();
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is never touched on desktop when the connect window opens", async () => {
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is never touched on desktop when the settings tab is shown", async () => {
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+		document.body.appendChild(tab.containerEl);
+
+		tab.open();
+		await vi.waitFor(() => button(strings.connect), PLUGIN_WAIT);
+		tab.hide();
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is never touched on Android when the connect window opens", async () => {
+		onAndroid();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
+
+		expect(bar).toEqual([]);
+	});
+
+	it("is skipped on iOS without the native Keyboard plugin: the login screen still shows and the failure is logged", async () => {
+		onIos();
+		const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const { plugin } = await startedWithNote();
+
+		openConnectWindow(document.body, plugin);
+
+		await vi.waitFor(() => button(strings.continue), PLUGIN_WAIT);
+		await vi.waitFor(() =>
+			expect(logged).toHaveBeenCalledWith(
+				"seamsync: switching the keyboard's bar failed",
+				new Error("there is no Capacitor global on the window"),
+			),
+		);
 	});
 });
