@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi, type M
 import SeamsyncPlugin from "../src/main";
 import type { HttpRequest } from "../src/providers/dropbox/http";
 import { selectStrings } from "../src/ui/i18n/strings";
+import { installNativeKeyboard, removeCapacitor } from "./fakes/fake-capacitor";
 import { FakeDropbox, json, type FakeDropboxAccount } from "./fakes/fake-dropbox";
-import { Notice, Platform, answerRequestsWith, type Plugin as FakePlugin } from "./fakes/obsidian";
+import { Modal, Notice, Platform, answerRequestsWith, playApiVersion, type Plugin as FakePlugin } from "./fakes/obsidian";
 import { FakeApp } from "./fakes/obsidian-app";
 import {
 	PLUGIN_WAIT,
@@ -46,7 +47,7 @@ afterEach(async () => {
 	document.body.replaceChildren();
 	vi.restoreAllMocks();
 	// The native bar belongs to the test that installed it.
-	Reflect.deleteProperty(window, "Capacitor");
+	removeCapacitor();
 });
 
 /** Makes `requestUrl` reach `dropbox`, which takes the plugin's requests as the Dropbox provider sends them. */
@@ -124,19 +125,11 @@ function onAndroid(): void {
  * one, and returns what it was asked to do: the `isVisible` of each call
  * to `setAccessoryBarVisible`, in order.
  */
-function installNativeKeyboard(): boolean[] {
+function installRecordingKeyboard(): boolean[] {
 	const calls: boolean[] = [];
-	Object.assign(window, {
-		Capacitor: {
-			Plugins: {
-				Keyboard: {
-					setAccessoryBarVisible: ({ isVisible }: { isVisible: boolean }): Promise<void> => {
-						calls.push(isVisible);
-						return Promise.resolve();
-					},
-				},
-			},
-		},
+	installNativeKeyboard(({ isVisible }: { isVisible: boolean }): Promise<void> => {
+		calls.push(isVisible);
+		return Promise.resolve();
 	});
 	return calls;
 }
@@ -222,7 +215,7 @@ describe("the plugin after connecting", () => {
 describe("the keyboard's bar", () => {
 	it("is turned on, then off, on iOS when connecting closes the connect window", async () => {
 		onIos();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { dropbox, account, plugin } = await startedWithNote();
 
 		await connect(plugin, dropbox, account);
@@ -232,7 +225,7 @@ describe("the keyboard's bar", () => {
 
 	it("stays on while the connect window opened from the shown settings tab closes, until the tab is hidden", async () => {
 		onIos();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { dropbox, account, plugin } = await startedWithNote();
 		const tab = plugin.settingTabs[0];
 		if (tab === undefined) throw new Error("no settings tab");
@@ -253,7 +246,7 @@ describe("the keyboard's bar", () => {
 
 	it("is turned off on iOS when the plugin unloads while its settings tab is shown", async () => {
 		onIos();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 		plugin.settingTabs[0]?.open();
 
@@ -262,9 +255,24 @@ describe("the keyboard's bar", () => {
 		expect(bar).toEqual([true, false]);
 	});
 
+	it("is turned on, then off, on iOS when the settings tab is shown and hidden on Obsidian 1.13", async () => {
+		onIos();
+		playApiVersion("1.13.0");
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+		const tab = plugin.settingTabs[0];
+		if (tab === undefined) throw new Error("no settings tab");
+
+		tab.open();
+		expect(bar).toEqual([true]);
+		tab.hide();
+
+		expect(bar).toEqual([true, false]);
+	});
+
 	it("is turned on, then off, on iOS when the Edit… window of a Conflict block opens and is cancelled", async () => {
 		onIos();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 
 		pressEditOfConflictBlock(plugin);
@@ -274,7 +282,7 @@ describe("the keyboard's bar", () => {
 	});
 
 	it("is never touched on desktop when the Edit… window of a Conflict block opens and is cancelled", async () => {
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 
 		pressEditOfConflictBlock(plugin);
@@ -283,20 +291,36 @@ describe("the keyboard's bar", () => {
 		expect(bar).toEqual([]);
 	});
 
-	it("is turned off on iOS when the plugin unloads while the connect window is open", async () => {
+	it("is turned off on iOS when the plugin unloads while the connect window is open, and closing the window afterwards sends nothing more", async () => {
 		onIos();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
+		const opening = vi.spyOn(Modal.prototype, "open");
 		openConnectWindow(document.body, plugin);
 		await vi.waitFor(() => button(strings.openDropbox), PLUGIN_WAIT);
 
 		plugin.unload();
+		expect(bar).toEqual([true, false]);
 
+		expect(opening).toHaveBeenCalledTimes(1);
+		const [modal] = opening.mock.contexts;
+		if (!(modal instanceof Modal)) throw new Error("no window was opened");
+		modal.close();
 		expect(bar).toEqual([true, false]);
 	});
 
+	it("is never touched on iOS when the plugin loads and unloads with nothing open", async () => {
+		onIos();
+		const bar = installRecordingKeyboard();
+		const { plugin } = await startedWithNote();
+
+		plugin.unload();
+
+		expect(bar).toEqual([]);
+	});
+
 	it("is never touched on desktop when the connect window opens", async () => {
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 
 		openConnectWindow(document.body, plugin);
@@ -306,7 +330,7 @@ describe("the keyboard's bar", () => {
 	});
 
 	it("is never touched on desktop when the settings tab is shown", async () => {
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 		const tab = plugin.settingTabs[0];
 		if (tab === undefined) throw new Error("no settings tab");
@@ -321,7 +345,7 @@ describe("the keyboard's bar", () => {
 
 	it("is never touched on Android when the connect window opens", async () => {
 		onAndroid();
-		const bar = installNativeKeyboard();
+		const bar = installRecordingKeyboard();
 		const { plugin } = await startedWithNote();
 
 		openConnectWindow(document.body, plugin);
@@ -341,7 +365,7 @@ describe("the keyboard's bar", () => {
 		await vi.waitFor(() =>
 			expect(logged).toHaveBeenCalledWith(
 				"seamsync: switching the keyboard's bar failed",
-				new Error("seamsync: there is no Capacitor global on the window"),
+				new Error("there is no Capacitor global on the window"),
 			),
 		);
 	});

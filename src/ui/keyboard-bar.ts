@@ -31,10 +31,11 @@ export function createKeyboardBar(options: { readonly setVisible: (isVisible: bo
 	/**
 	 * Switches the native bar without waiting for it. Nobody can act on a
 	 * failure (the user only loses a convenience), so it is logged for a bug
-	 * report instead of being thrown or shown.
+	 * report instead of being thrown or shown. The call runs at once, inside a
+	 * promise, so a `setVisible` that throws is logged like one that rejects.
 	 */
 	const switchTo = (isVisible: boolean): void => {
-		options.setVisible(isVisible).catch((error: unknown) => {
+		new Promise<void>((resolve) => resolve(options.setVisible(isVisible))).catch((error: unknown) => {
 			console.error("seamsync: switching the keyboard's bar failed", error);
 		});
 	};

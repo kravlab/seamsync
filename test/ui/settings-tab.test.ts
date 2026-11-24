@@ -12,6 +12,7 @@ import { createKeyboardBar, type KeyboardBar } from "../../src/ui/keyboard-bar";
 import { SeamsyncSettingTab } from "../../src/ui/settings-tab";
 import { Notice, Plugin, openSettingTab, playApiVersion } from "../fakes/obsidian";
 import { FakeApp } from "../fakes/obsidian-app";
+import { recordedKeyboardBar, switchedTo, type RecordedSwitch } from "../fakes/recorded-keyboard-bar";
 
 const strings = selectStrings("en");
 
@@ -282,29 +283,18 @@ describe("the settings tab's help", () => {
 	});
 });
 
-/** One switch of the native keyboard bar, with how many text fields the tab had drawn when it was asked. */
-interface BarSwitch {
-	readonly isVisible: boolean;
-	readonly fields: number;
-}
-
 /**
  * A settings tab holding a recording keyboard bar, and the switches that
- * reach its native bar, in order. The tab does not exist yet when the bar is
- * made, so the switches count its fields through `built`, set once it is.
+ * reach its native bar, in order, each with how many text fields the tab had
+ * drawn when it was asked. The tab does not exist yet when the bar is made,
+ * so the switches count its fields through `built`, set once it is.
  */
 function tabWithRecordingBar(overrides: Partial<ConnectionService> = {}): {
 	readonly tab: SeamsyncSettingTab;
-	readonly switches: BarSwitch[];
+	readonly switches: RecordedSwitch<number>[];
 } {
-	const switches: BarSwitch[] = [];
 	let built: SeamsyncSettingTab | undefined;
-	const bar = createKeyboardBar({
-		setVisible: (isVisible) => {
-			switches.push({ isVisible, fields: built?.containerEl.querySelectorAll("input, textarea").length ?? 0 });
-			return Promise.resolve();
-		},
-	});
+	const { bar, switches } = recordedKeyboardBar(() => built?.containerEl.querySelectorAll("input, textarea").length ?? 0);
 	const tab = builtTab(overrides, undefined, undefined, bar);
 	built = tab;
 	return { tab, switches };
@@ -324,7 +314,7 @@ describe.each(["1.12.7", "1.13.0"])("the settings tab's keyboard bar on Obsidian
 		openSettingTab(tab);
 		await settle();
 
-		expect(switches[0]).toEqual({ isVisible: true, fields: 0 });
+		expect(switches[0]).toEqual({ isVisible: true, observed: 0 });
 	});
 
 	it("is switched off when the tab is hidden", async () => {
@@ -334,7 +324,7 @@ describe.each(["1.12.7", "1.13.0"])("the settings tab's keyboard bar on Obsidian
 
 		tab.hide();
 
-		expect(switches.map((entry) => entry.isVisible)).toEqual([true, false]);
+		expect(switchedTo(switches)).toEqual([true, false]);
 	});
 
 	it("is not switched on again when the shown tab is drawn again", async () => {
@@ -349,7 +339,15 @@ describe.each(["1.12.7", "1.13.0"])("the settings tab's keyboard bar on Obsidian
 		await tab.refreshShared();
 		tab.hide();
 
-		expect(switches.map((entry) => entry.isVisible)).toEqual([true, false]);
+		expect(switchedTo(switches)).toEqual([true, false]);
+	});
+
+	it("is left alone when a tab that was never shown is hidden", () => {
+		const { tab, switches } = tabWithRecordingBar();
+
+		tab.hide();
+
+		expect(switches).toEqual([]);
 	});
 
 	it("is left alone when the tab is drawn while it is not shown", async () => {

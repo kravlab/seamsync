@@ -23,6 +23,8 @@
  * loudly instead of being ignored.
  */
 
+import type { PluginSettingTab as ObsidianPluginSettingTab } from "obsidian";
+
 /** What Obsidian's `createEl` takes besides the tag (`DomElementInfo`). */
 interface ElementInfo {
 	/** Classes, space-separated or as a list. */
@@ -1083,7 +1085,11 @@ type DefinitionItem = DefinitionGroup | DefinitionRow;
 /**
  * Test-only: plays the settings window showing `tab`, for tests that hold
  * the tab under Obsidian's typings, which lack the fake's `open`.
+ *
+ * @param tab the settings tab to show; it must be one of this fake's settings tabs
+ * @throws Error when `tab` is not the fake's settings tab
  */
-export function openSettingTab(tab: object): void {
-	(tab as PluginSettingTab).open();
+export function openSettingTab(tab: ObsidianPluginSettingTab): void {
+	if (!(tab instanceof PluginSettingTab)) throw new Error("not the fake's settings tab");
+	tab.open();
 }

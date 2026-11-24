@@ -35,8 +35,8 @@ export class ConflictEditModal extends KeyboardBarModal {
 		fitForPhone(this);
 	}
 
-	override onOpen(): void {
-		super.onOpen();
+	/** Draws the window's title, both sides of the block and the text field with Cancel and Save. */
+	protected override draw(): void {
 		const { contentEl, strings, block } = this;
 		this.setTitle(strings.conflictEditTitle);
 		this.modalEl.addClass("seamsync-conflict-edit");
@@ -60,10 +60,5 @@ export class ConflictEditModal extends KeyboardBarModal {
 						else new Notice(strings.conflictChanged);
 					}),
 			);
-	}
-
-	override onClose(): void {
-		super.onClose();
-		this.contentEl.empty();
 	}
 }

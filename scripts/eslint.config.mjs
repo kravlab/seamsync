@@ -19,6 +19,22 @@ export default defineConfig([
 			},
 		},
 	},
+	// A KeyboardBarModal holds and releases the keyboard's bar in its own
+	// onOpen/onClose, so a subclass must draw in draw() and not override them.
+	{
+		files: ["src/**/*.ts"],
+		rules: {
+			"no-restricted-syntax": [
+				"error",
+				{
+					selector:
+						":matches(ClassDeclaration, ClassExpression)[superClass.name='KeyboardBarModal'] > ClassBody > MethodDefinition[key.name=/^on(Open|Close)$/]",
+					message:
+						"A KeyboardBarModal subclass draws in draw(); onOpen/onClose belong to the base, which holds and releases the keyboard's bar.",
+				},
+			],
+		},
+	},
 	// The tests' fake of the obsidian module defines Obsidian's element
 	// helpers (createEl, createDiv), so it has to build elements without them.
 	{

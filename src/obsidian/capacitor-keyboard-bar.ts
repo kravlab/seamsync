@@ -13,11 +13,11 @@ export function capacitorAccessoryBarSetter(win: Window): (isVisible: boolean) =
 	return async (isVisible) => {
 		const capacitor: unknown = Reflect.get(win, "Capacitor");
 		// Told apart from a missing Keyboard plugin, since the logged error is all a bug report has to go on.
-		if (!isRecord(capacitor)) throw new Error("seamsync: there is no Capacitor global on the window");
+		if (!isRecord(capacitor)) throw new Error("there is no Capacitor global on the window");
 		const plugins = capacitor.Plugins;
 		const keyboard = isRecord(plugins) ? plugins.Keyboard : undefined;
 		const method = isRecord(keyboard) ? keyboard.setAccessoryBarVisible : undefined;
-		if (typeof method !== "function") throw new Error("seamsync: the Capacitor Keyboard plugin has no setAccessoryBarVisible method");
+		if (typeof method !== "function") throw new Error("the Capacitor Keyboard plugin has no setAccessoryBarVisible method");
 		await Reflect.apply(method, keyboard, [{ isVisible }]);
 	};
 }

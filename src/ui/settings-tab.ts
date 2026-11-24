@@ -179,6 +179,12 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 		else this.draw();
 	}
 
+	/**
+	 * The tab's rows as Obsidian 1.13 and later draw them declaratively, the
+	 * same rows `draw` draws before 1.13. Obsidian also calls it to index the
+	 * tab for settings search while the tab is not shown, so building the rows
+	 * holds nothing; only drawing a field does (`holdingKeyboardBar`).
+	 */
 	override getSettingDefinitions(): SettingDefinitionItem[] {
 		/** `field` as a declarative row. */
 		const custom = (field: CustomField) => ({
@@ -214,15 +220,24 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 	}
 
 	/**
-	 * `draw` as a row's render callback that holds the keyboard's bar first,
-	 * before any field is drawn (see `display`). Holding is not left to
-	 * `getSettingDefinitions`: Obsidian also calls it to index the tab for
-	 * search, while the tab is not shown. Holding again on each refresh
-	 * changes nothing.
+	 * Holds the keyboard's bar for the tab; both drawing paths call it before
+	 * any field is drawn, as `KeyboardBarModal.onOpen` does, since switching
+	 * the bar on while a field already has focus shows it only once that
+	 * field is focused again. Holding again on each refresh changes nothing.
+	 */
+	private holdKeyboardBar(): void {
+		this.keyboardBar.hold(this);
+	}
+
+	/**
+	 * `draw` as a row's render callback that holds the keyboard's bar first
+	 * (`holdKeyboardBar`). Holding is not left to `getSettingDefinitions`:
+	 * Obsidian also calls it to index the tab for search, while the tab is
+	 * not shown.
 	 */
 	private holdingKeyboardBar(draw: (setting: Setting) => void): (setting: Setting) => void {
 		return (setting) => {
-			this.keyboardBar.hold(this);
+			this.holdKeyboardBar();
 			draw(setting);
 		};
 	}
@@ -233,8 +248,7 @@ export class SeamsyncSettingTab extends PluginSettingTab {
 	 * do not call it; there the tab follows each sync (`refreshShared`).
 	 */
 	override display(): void {
-		// Before any field is drawn, as in KeyboardBarModal.onOpen.
-		this.keyboardBar.hold(this);
+		this.holdKeyboardBar();
 		this.draw();
 		this.reload().catch((error: unknown) => console.error("seamsync: reading the settings failed", error));
 	}

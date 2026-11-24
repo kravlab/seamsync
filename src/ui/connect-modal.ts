@@ -74,15 +74,10 @@ export class ConnectModal extends KeyboardBarModal {
 		fitForPhone(this);
 	}
 
-	override onOpen(): void {
-		super.onOpen();
+	/** Draws the window's title and the login screen. */
+	protected override draw(): void {
 		this.setTitle(this.strings.connectTitle);
 		void this.showLogin();
-	}
-
-	override onClose(): void {
-		super.onClose();
-		this.contentEl.empty();
 	}
 
 	/** Shows the login screen for a new login, with `message` above it if given. */
