@@ -215,6 +215,41 @@ describe("the fake obsidian module's components", () => {
 		expect(text?.inputEl.parentElement).toBe(setting.controlEl);
 		expect(button?.buttonEl.parentElement).toBe(setting.controlEl);
 	});
+
+	it("hides the keyboard of a text field added through a settings row on Enter", () => {
+		let text: TextComponent | undefined;
+		new Setting(document.body.createDiv()).addText((field) => (text = field));
+		text?.inputEl.focus();
+
+		text?.inputEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		expect(document.activeElement).not.toBe(text?.inputEl);
+	});
+
+	it.each([
+		["another key is pressed", "a", false, false],
+		["the Enter is cancelled", "Enter", true, false],
+		["the Enter ends a composition", "Enter", false, true],
+	])("keeps the focus of a settings row's text field when %s", (_case, key, prevented, composing) => {
+		let text: TextComponent | undefined;
+		new Setting(document.body.createDiv()).addText((field) => (text = field));
+		text?.inputEl.focus();
+		const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, isComposing: composing });
+		if (prevented) event.preventDefault();
+
+		text?.inputEl.dispatchEvent(event);
+
+		expect(document.activeElement).toBe(text?.inputEl);
+	});
+
+	it("keeps the focus of a text field made directly on Enter", () => {
+		const text = new TextComponent(document.body.createDiv());
+		text.inputEl.focus();
+
+		text.inputEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		expect(document.activeElement).toBe(text.inputEl);
+	});
 });
 
 describe("the fake obsidian module's notices, modals and reset", () => {

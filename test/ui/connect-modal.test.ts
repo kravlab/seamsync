@@ -320,6 +320,16 @@ describe("the connect window's Paste", () => {
 		expect(submitted).not.toHaveBeenCalled();
 	});
 
+	it("hides the keyboard when Enter is pressed in the code field", async () => {
+		const { modal } = await openLogin();
+		codeField(modal).focus();
+		expect(document.activeElement).toBe(codeField(modal));
+
+		codeField(modal).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		expect(document.activeElement).not.toBe(codeField(modal));
+	});
+
 	it("submits the pasted code trimmed on Continue, as a typed one", async () => {
 		clipboard.readText.mockResolvedValue("  ab12-cd34\n");
 		const { modal, submitted } = await openLogin();
