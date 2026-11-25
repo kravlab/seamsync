@@ -163,6 +163,7 @@ describe("text Conflict blocks", { timeout: DEVICE_TEST_TIMEOUT_MS }, () => {
 			if (first === undefined) throw new Error("no action row");
 			expect(others).toHaveLength(1);
 			expect(first.classList).not.toContain("seamsync-phone");
+			expect(first.classList).not.toContain("seamsync-phone-fields");
 			buttonIn(first, label).click();
 			resolved[label] = view.state.doc.toString();
 			expect(actionRows(view)).toHaveLength(1);
@@ -188,6 +189,7 @@ describe("text Conflict blocks", { timeout: DEVICE_TEST_TIMEOUT_MS }, () => {
 		if (dialog === undefined) throw new Error("no Edit… dialog");
 		expect(others).toEqual([]);
 		expect(dialog.modalEl.classList).toContain("seamsync-phone");
+		expect(dialog.modalEl.classList).toContain("seamsync-phone-fields");
 		const sides = [...dialog.contentEl.querySelectorAll(".seamsync-conflict-edit-side")].map((side) => side.textContent);
 		expect(sides).toEqual(["Phone vaultfirst, mine\n", "Remotefirst, theirs\n"]);
 		const field = dialog.contentEl.querySelector("textarea");

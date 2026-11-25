@@ -57,9 +57,10 @@ the configuration folder categories you turn on.
   the Remote and the sync snapshot to find what changed. Listing is
   not syncing: configuration categories you have not turned on are
   listed but not synced.
-- **Clipboard.** Seamsync only writes to the clipboard, and only when
-  you select **Copy error** in the connect window or **Copy for a bug
-  report** in the sync window. It never reads the clipboard.
+- **Clipboard.** Seamsync writes to the clipboard only when you select
+  **Copy error** in the connect window or **Copy for a bug report** in
+  the sync window, and reads it only when you select **Paste** in the
+  connect window.
 
 ## Installation
 

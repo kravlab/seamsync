@@ -242,6 +242,12 @@ export const en = {
 	openDropbox: "Open Dropbox",
 	loginCode: "Code",
 	continue: "Continue",
+	/** Login step: the button putting the clipboard's text into the code field, sending nothing. */
+	paste: "Paste",
+	/** Paste could not read the clipboard: it was refused, or the platform gives none. */
+	clipboardRefused: "Could not read the clipboard. Paste the code into the field.",
+	/** Paste found no text in the clipboard. */
+	clipboardEmpty: "The clipboard has no text. Copy the code that Dropbox shows first.",
 	/** The pasted code was refused: reused, expired or mistyped. */
 	codeRejected:
 		"Dropbox did not accept this code. It may have been used already or expired. Open Dropbox again and paste the new code.",

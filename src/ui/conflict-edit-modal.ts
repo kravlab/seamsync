@@ -27,7 +27,7 @@ export class ConflictEditModal extends Modal {
 		private readonly onSave: (text: string) => boolean,
 	) {
 		super(app);
-		fitForPhone(this);
+		fitForPhone(this, { textFields: true });
 	}
 
 	override onOpen(): void {

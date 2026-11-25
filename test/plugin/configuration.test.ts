@@ -155,6 +155,7 @@ describe("the configuration folder in sync", { timeout: DEVICE_TEST_TIMEOUT_MS }
 		// Not covered: typing a query, nor what Obsidian does around the choice.
 		const list = lists()[0] as unknown as RestoreConfigurationModal;
 		expect(list.modalEl.classList).toContain("seamsync-phone");
+		expect(list.modalEl.classList).not.toContain("seamsync-phone-fields");
 		const [kept, ...others] = list.getSuggestions("");
 		if (kept === undefined) throw new Error("no kept version listed");
 		expect(others).toEqual([]);
