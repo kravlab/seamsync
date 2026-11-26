@@ -13,6 +13,8 @@ import { ProviderError } from "../../src/engine/provider";
 import { ConnectModal } from "../../src/ui/connect-modal";
 import { fill } from "../../src/ui/i18n/fill";
 import { selectStrings } from "../../src/ui/i18n/strings";
+import { createKeyboardBar } from "../../src/ui/keyboard-bar";
+import { connectionServiceFor } from "../fakes/fake-connection-service";
 import { Notice } from "../fakes/obsidian";
 
 const strings = selectStrings("en");
@@ -30,18 +32,11 @@ interface Script {
 /** A connection service that starts logins and answers the code as `script` says. */
 function serviceFor(script: Pick<Script, "startAuthorization" | "submitCode">): ConnectionService {
 	const { submitCode = () => Promise.reject(new Error("unused")) } = script;
-	return {
-		showStatus: () => Promise.resolve(),
-		currentDevice: () => Promise.resolve(null),
-		disconnect: () => Promise.resolve({ kind: "disconnected" }),
+	return connectionServiceFor({
 		startAuthorization:
 			script.startAuthorization ??
 			(() => Promise.resolve({ authorizeUrl: "https://example.com/authorize", submitCode: () => submitCode() })),
-		renameDevice: () => Promise.reject(new Error("unused")),
-		otherDevices: () => Promise.reject(new Error("unused")),
-		forgetDevice: () => Promise.reject(new Error("unused")),
-		sharedSettings: () => Promise.resolve(null),
-	};
+	});
 }
 
 /** A Remote choice offering the folder "Notes", answering as `script` says. */
@@ -59,7 +54,8 @@ function newWindow(
 	windowStrings = strings,
 	onConnected: (kind: "connected" | "reconnected") => void = () => undefined,
 ): ConnectModal {
-	const modal = new ConnectModal({} as never, service, windowStrings, "My vault", onConnected);
+	const keyboardBar = createKeyboardBar({ setVisible: () => Promise.resolve() });
+	const modal = new ConnectModal({} as never, service, windowStrings, "My vault", onConnected, keyboardBar);
 	modal.open();
 	return modal;
 }

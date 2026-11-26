@@ -24,6 +24,7 @@ import {
 	apiVersion,
 	getLanguage,
 	language,
+	playApiVersion,
 	requestUrl,
 	requireApiVersion,
 	resetObsidianFake,
@@ -284,6 +285,17 @@ describe("the fake obsidian module's app-wide functions", () => {
 		expect(requireApiVersion(apiVersion)).toBe(true);
 		expect(requireApiVersion("1.0.0")).toBe(true);
 		expect(requireApiVersion("1.12")).toBe(true);
+		expect(requireApiVersion("1.13.0")).toBe(false);
+	});
+
+	it("plays the Obsidian version a test sets, and the default one again after a reset", () => {
+		playApiVersion("1.13.0");
+		const played = [apiVersion, requireApiVersion("1.13.0")];
+
+		resetObsidianFake();
+
+		expect(played).toEqual(["1.13.0", true]);
+		expect(apiVersion).toBe("1.12.7");
 		expect(requireApiVersion("1.13.0")).toBe(false);
 	});
 
@@ -659,5 +671,201 @@ describe("the fake obsidian module's plugin", () => {
 		target.click();
 
 		expect(heard).toBe(1);
+	});
+});
+
+describe("the fake obsidian module's settings tab", () => {
+	/** A tab that counts its `display` calls and gives the definitions its test sets. */
+	class Probe extends PluginSettingTab {
+		/** The definitions the tab gives. */
+		definitions: unknown[] = [];
+		/** How many times `display` ran. */
+		displays = 0;
+		/** How many times `hide` ran. */
+		hides = 0;
+
+		override getSettingDefinitions(): unknown[] {
+			return this.definitions;
+		}
+
+		override display(): void {
+			this.displays += 1;
+		}
+
+		override hide(): void {
+			this.hides += 1;
+			super.hide();
+		}
+	}
+
+	/** A tab of a plugin of a fake app. */
+	const tab = (): Probe => new Probe({}, new Plugin({}, { id: "test", version: "1.0.0" }));
+
+	it("draws itself through display when it opens before Obsidian 1.13", () => {
+		const opened = tab();
+		opened.definitions = [{ name: "Row", desc: "Text", action: () => undefined }];
+
+		opened.open();
+
+		expect(opened.displays).toBe(1);
+		expect(opened.containerEl.children).toHaveLength(0);
+	});
+
+	it("draws an action row from the definitions, running its action on a click, when it opens on Obsidian 1.13 or later", () => {
+		const opened = tab();
+		const clicked: unknown[][] = [];
+		opened.definitions = [{ name: "Sync", desc: "Syncs now", action: (...given: unknown[]) => clicked.push(given) }];
+		playApiVersion("1.13.0");
+
+		opened.open();
+		const row = opened.containerEl.querySelector<HTMLElement>(".setting-item");
+		row?.click();
+
+		expect(opened.displays).toBe(0);
+		expect(row?.querySelector(".setting-item-name")?.textContent).toBe("Sync");
+		expect(row?.querySelector(".setting-item-description")?.textContent).toBe("Syncs now");
+		expect(clicked).toEqual([[row, 0]]);
+	});
+
+	it("draws a render row by handing the callback a settings row inside the container", () => {
+		const opened = tab();
+		const given: Setting[] = [];
+		opened.definitions = [{ name: "Name", desc: "Text", render: (setting: Setting) => given.push(setting) }];
+		playApiVersion("1.13.0");
+
+		opened.open();
+
+		expect(opened.displays).toBe(0);
+		expect(given).toHaveLength(1);
+		expect(opened.containerEl.contains(given[0]?.settingEl ?? null)).toBe(true);
+		expect(given[0]?.nameEl.textContent).toBe("Name");
+	});
+
+	it("draws a group as a heading row followed by its rows", () => {
+		const opened = tab();
+		opened.definitions = [
+			{
+				type: "group",
+				heading: "Devices",
+				items: [
+					{ name: "First", desc: "One", render: () => undefined },
+					{ name: "Second", desc: "Two", action: () => undefined },
+				],
+			},
+		];
+		playApiVersion("1.13.0");
+
+		opened.open();
+		const rows = [...opened.containerEl.querySelectorAll(".setting-item")];
+
+		expect(rows.map((row) => row.querySelector(".setting-item-name")?.textContent)).toEqual(["Devices", "First", "Second"]);
+		expect(rows[0]?.classList.contains("setting-item-heading")).toBe(true);
+	});
+
+	it("draws itself through display on Obsidian 1.13 or later when it has no definitions", () => {
+		const opened = tab();
+		playApiVersion("1.13.0");
+
+		opened.open();
+
+		expect(opened.displays).toBe(1);
+	});
+
+	it("fails on a definition it does not play, rather than leaving it undrawn", () => {
+		const opened = tab();
+		opened.definitions = [{ name: "Switch", desc: "On or off", control: { type: "toggle" } }];
+		playApiVersion("1.13.0");
+
+		expect(() => opened.open()).toThrow(/Switch/);
+	});
+
+	it("draws the definitions again, replacing the rows, when it is updated while shown", () => {
+		const opened = tab();
+		let renders = 0;
+		opened.definitions = [{ name: "Name", desc: "Text", render: () => (renders += 1) }];
+		playApiVersion("1.13.0");
+		opened.open();
+
+		opened.definitions = [{ name: "Renamed", desc: "Text", render: () => (renders += 1) }];
+		opened.update();
+
+		expect(renders).toBe(2);
+		expect([...opened.containerEl.querySelectorAll(".setting-item-name")].map((name) => name.textContent)).toEqual(["Renamed"]);
+	});
+
+	it("only stores the definitions when it is updated while not shown", () => {
+		const closed = tab();
+		let renders = 0;
+		closed.definitions = [{ name: "Name", desc: "Text", render: () => (renders += 1) }];
+		playApiVersion("1.13.0");
+
+		closed.update();
+
+		expect(closed.settingItems).toEqual(closed.definitions);
+		expect(renders).toBe(0);
+		expect(closed.containerEl.children).toHaveLength(0);
+	});
+
+	it("empties its container when it is hidden, and draws nothing on a later update", () => {
+		const opened = tab();
+		let renders = 0;
+		opened.definitions = [{ name: "Name", desc: "Text", render: () => (renders += 1) }];
+		playApiVersion("1.13.0");
+		opened.open();
+
+		opened.hide();
+		opened.update();
+
+		expect(opened.containerEl.children).toHaveLength(0);
+		expect(renders).toBe(1);
+	});
+
+	it("hides a shown tab when its plugin unloads, and leaves a tab never shown alone", () => {
+		const owner = new Plugin({}, { id: "test", version: "1.0.0" });
+		const shown = new Probe({}, owner);
+		const never = new Probe({}, owner);
+		owner.addSettingTab(shown);
+		owner.addSettingTab(never);
+		shown.open();
+
+		owner.unload();
+
+		expect(shown.hides).toBe(1);
+		expect(never.hides).toBe(0);
+	});
+
+	it("does not take a subclass's own members for its own state, whatever they are named", () => {
+		/** A tab like a real subclass, which Obsidian's typings let use these names for its own purposes. */
+		class Namesake extends Probe {
+			/** Some data of the subclass, not a flag of the fake. */
+			shown: unknown = { any: "settings" };
+			/** How many times the subclass's own method of the same name ran. */
+			drawn = 0;
+
+			drawDefinitions(): void {
+				this.drawn += 1;
+			}
+		}
+		const owner = new Plugin({}, { id: "test", version: "1.0.0" });
+		const closed = new Namesake({}, owner);
+		let renders = 0;
+		closed.definitions = [{ name: "Name", desc: "Text", render: () => (renders += 1) }];
+		owner.addSettingTab(closed);
+		playApiVersion("1.13.0");
+
+		closed.update();
+		owner.unload();
+
+		expect(renders).toBe(0);
+		expect(closed.drawn).toBe(0);
+		expect(closed.hides).toBe(0);
+
+		const opened = new Namesake({}, new Plugin({}, { id: "test", version: "1.0.0" }));
+		opened.definitions = [{ name: "Name", desc: "Text", render: () => (renders += 1) }];
+
+		opened.open();
+
+		expect(renders).toBe(1);
+		expect(opened.drawn).toBe(0);
 	});
 });

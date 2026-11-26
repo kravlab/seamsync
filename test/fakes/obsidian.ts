@@ -23,6 +23,8 @@
  * loudly instead of being ignored.
  */
 
+import type { PluginSettingTab as ObsidianPluginSettingTab } from "obsidian";
+
 /** What Obsidian's `createEl` takes besides the tag (`DomElementInfo`). */
 interface ElementInfo {
 	/** Classes, space-separated or as a list. */
@@ -256,8 +258,16 @@ export class Notice {
 	}
 }
 
-/** The Obsidian version the fake plays: before 1.13, so settings tabs draw themselves (`display`). */
-export const apiVersion = "1.12.7";
+/** The Obsidian version the fake plays unless a test chooses another: before 1.13, so settings tabs draw themselves (`display`). */
+const DEFAULT_API_VERSION = "1.12.7";
+
+/** The Obsidian version the fake plays now; a live binding, so importers see `playApiVersion` take effect. */
+export let apiVersion = DEFAULT_API_VERSION;
+
+/** Plays Obsidian `version` from now on, until the next reset, so a test can show both drawing paths of a settings tab. */
+export function playApiVersion(version: string): void {
+	apiVersion = version;
+}
 
 /** Whether the app is `version` or later, compared part by part. */
 export function requireApiVersion(version: string): boolean {
@@ -345,13 +355,15 @@ export function showInto(element: HTMLElement): void {
 
 /**
  * Puts the fake's shared state back as a test starts: no notices shown,
- * the desktop platform, English, no `requestUrl` handler, windows shown in
- * the document's body. The vitest setup file calls it before every test.
+ * the desktop platform, English, the default API version, no `requestUrl`
+ * handler, windows shown in the document's body. The vitest setup file
+ * calls it before every test.
  */
 export function resetObsidianFake(): void {
 	Notice.shown.length = 0;
 	Object.assign(Platform, DESKTOP_PLATFORM);
 	language.code = "en";
+	apiVersion = DEFAULT_API_VERSION;
 	requestHandler = undefined;
 	shownIn = undefined;
 }
@@ -930,9 +942,12 @@ export class Plugin {
 		return command;
 	}
 
-	/** Adds `tab` to the settings. */
+	/** Adds `tab` to the settings; on unload it is removed, which hides it if the settings window shows it. */
 	addSettingTab(tab: PluginSettingTab): void {
 		this.settingTabs.push(tab);
+		this.register(() => {
+			if (shownTabs.has(tab)) tab.hide();
+		});
 	}
 
 	/** Adds a ribbon icon that runs `onClick`, removed on unload. */
@@ -965,10 +980,45 @@ export class Plugin {
 	}
 }
 
-/** A plugin's settings tab: its element, which `display` fills. */
+/**
+ * The tabs the settings window shows now. Kept outside the tab, and the
+ * helpers below outside its prototype, because a real subclass is checked
+ * against Obsidian's typings, which have none of the fake's own names, and
+ * may use them for its own members.
+ */
+const shownTabs = new WeakSet<PluginSettingTab>();
+
+/** Whether Obsidian draws `tab` from its definitions rather than through `display`. */
+function drawsDeclaratively(tab: PluginSettingTab): boolean {
+	return requireApiVersion("1.13.0") && tab.settingItems.length > 0;
+}
+
+/** Draws the stored definitions of `tab` into its emptied container, as Obsidian's window does on each refresh. */
+function drawDefinitions(tab: PluginSettingTab): void {
+	tab.containerEl.empty();
+	tab.settingItems.forEach((item, index) => drawDefinition(tab.containerEl, item as DefinitionItem, index));
+}
+
+/** Draws one definition into `containerEl`; `index` is its position in its group, or in the tab, which an action row gets back. */
+function drawDefinition(containerEl: HTMLElement, item: DefinitionItem, index: number): void {
+	if (item.type === "group") {
+		new Setting(containerEl).setName(item.heading).setHeading();
+		item.items.forEach((inner, innerIndex) => drawDefinition(containerEl, inner, innerIndex));
+		return;
+	}
+	const { name, desc, action, render } = item;
+	if (!action && !render) throw new Error(`the fake settings tab plays only action rows, render rows and groups, not "${name}"`);
+	const row = new Setting(containerEl).setName(name).setDesc(desc);
+	if (action) row.settingEl.addEventListener("click", () => action(row.settingEl, index));
+	else render?.(row);
+}
+
+/** A plugin's settings tab: its element, which `display` or the definitions fill. */
 export class PluginSettingTab {
 	/** Where the tab draws its rows. */
 	readonly containerEl: HTMLElement;
+	/** The definitions `update` stored, which the declarative drawing follows. */
+	settingItems: unknown[] = [];
 
 	/**
 	 * @param app the app the tab belongs to
@@ -981,9 +1031,65 @@ export class PluginSettingTab {
 		this.containerEl = document.createElement("div");
 	}
 
+	/** The definitions the tab draws declaratively on Obsidian 1.13 and later; none leaves the drawing to `display`. */
+	getSettingDefinitions(): unknown[] {
+		return [];
+	}
+
+	/** Stores the definitions, and draws them again if the tab is shown. */
+	update(): void {
+		this.settingItems = this.getSettingDefinitions();
+		if (shownTabs.has(this) && drawsDeclaratively(this)) drawDefinitions(this);
+	}
+
 	/** Draws the tab. */
 	display(): void {}
 
-	/** Called when the tab is closed. */
-	hide(): void {}
+	/** Called when the tab is closed: Obsidian hides its contents, and a later `update` draws nothing until it is shown again. */
+	hide(): void {
+		shownTabs.delete(this);
+		this.containerEl.empty();
+	}
+
+	/**
+	 * Test-only: plays the settings window showing this tab. Obsidian 1.13
+	 * and later draw the definitions, if there are any, and do not call
+	 * `display`; earlier ones, and a tab without definitions, call it.
+	 */
+	open(): void {
+		shownTabs.add(this);
+		this.update();
+		if (!drawsDeclaratively(this)) this.display();
+	}
+}
+
+/** A group of rows under a heading, as `getSettingDefinitions` gives it. */
+interface DefinitionGroup {
+	readonly type: "group";
+	readonly heading: string;
+	readonly items: readonly DefinitionRow[];
+}
+
+/** An action row has `action`, run when the row is clicked; a render row has `render`, which fills the row. */
+interface DefinitionRow {
+	readonly type?: undefined;
+	readonly name: string;
+	readonly desc: string;
+	readonly action?: (el: HTMLElement, index: number) => void;
+	readonly render?: (setting: Setting) => void;
+}
+
+/** A definition the fake plays: a row, or a group of rows. */
+type DefinitionItem = DefinitionGroup | DefinitionRow;
+
+/**
+ * Test-only: plays the settings window showing `tab`, for tests that hold
+ * the tab under Obsidian's typings, which lack the fake's `open`.
+ *
+ * @param tab the settings tab to show; it must be one of this fake's settings tabs
+ * @throws Error when `tab` is not the fake's settings tab
+ */
+export function openSettingTab(tab: ObsidianPluginSettingTab): void {
+	if (!(tab instanceof PluginSettingTab)) throw new Error("not the fake's settings tab");
+	tab.open();
 }
