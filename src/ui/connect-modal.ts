@@ -1,4 +1,4 @@
-import { Notice, Setting, TextComponent, type App } from "obsidian";
+import { Notice, Setting, type App, type TextComponent } from "obsidian";
 import {
 	connectFailureOf,
 	type ConnectionService,
@@ -103,8 +103,10 @@ export class ConnectModal extends KeyboardBarModal {
 				}),
 		);
 		const codeRow = new Setting(contentEl).setName(strings.loginCode);
-		const field = new TextComponent(codeRow.controlEl);
+		let field!: TextComponent;
 		codeRow
+			// Not a bare TextComponent: addText carries Obsidian's Enter-hides-the-keyboard handler.
+			.addText((text) => (field = text))
 			.addButton((button) =>
 				button.setButtonText(strings.paste).onClick(() => {
 					void this.paste(field);

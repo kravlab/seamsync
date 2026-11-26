@@ -503,9 +503,17 @@ export class Setting {
 		return this;
 	}
 
-	/** Adds a text field, set up by `build`. */
+	/**
+	 * Adds a text field, set up by `build`. Like Obsidian 1.14.4's `addText` on
+	 * a phone without a physical keyboard, it blurs the field on Enter, which
+	 * hides the keyboard; a `TextComponent` made directly does not.
+	 */
 	addText(build: (text: TextComponent) => unknown): this {
-		build(new TextComponent(this.controlEl));
+		const text = new TextComponent(this.controlEl);
+		text.inputEl.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" && !event.isComposing && !event.defaultPrevented) text.inputEl.blur();
+		});
+		build(text);
 		return this;
 	}
 
